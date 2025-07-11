@@ -7,8 +7,7 @@ interface Block {
   x: number;
   y: number;
   z: number;
-  type: 'grass' | 'dirt' | 'stone';
-  plant?: 'flower' | 'tree' | 'bush' | null;
+  type: 'grass' | 'dirt' | 'stone' | 'flower' | 'tree' | 'bush' | 'morning-glory';
 }
 
 interface Camera {
@@ -17,11 +16,16 @@ interface Camera {
   zoom: number;
 }
 
-// Plant image configuration
-const PLANT_IMAGES = {
-  flower: '/plants/flower.png',
-  tree: '/plants/tree.png',
-  bush: '/plants/bush.png'
+// Block image configuration - add paths for any blocks you want to use images for
+const BLOCK_IMAGES = {
+  'morning-glory': '/plants/morning-glory.png',
+  'dirt': '/blocks/dirt.png',
+  // Add more block images here as needed:
+  // 'grass': '/blocks/grass.png',
+  // 'stone': '/blocks/stone.png',
+  // 'flower': '/plants/flower.png',
+  // 'tree': '/plants/tree.png',
+  // 'bush': '/plants/bush.png',
 };
 
 const IsometricGarden: React.FC = () => {
@@ -33,33 +37,35 @@ const IsometricGarden: React.FC = () => {
     { id: '4', x: 1, y: 1, z: 0, type: 'grass' },
   ]);
   const [camera, setCamera] = useState<Camera>({ x: 0, y: 0, zoom: 1 });
-  const [selectedTool, setSelectedTool] = useState<'block' | 'plant'>('block');
-  const [selectedBlockType, setSelectedBlockType] = useState<'grass' | 'dirt' | 'stone'>('grass');
-  const [selectedPlantType, setSelectedPlantType] = useState<'flower' | 'tree' | 'bush'>('flower');
+  const [selectedBlockType, setSelectedBlockType] = useState<Block['type']>('grass');
   const [isPanning, setIsPanning] = useState(false);
   const [panStart, setPanStart] = useState({ x: 0, y: 0 });
   const [hoveredBlock, setHoveredBlock] = useState<string | null>(null);
   const [hoveredTile, setHoveredTile] = useState<{ x: number; y: number } | null>(null);
   const [loadedImages, setLoadedImages] = useState<Record<string, HTMLImageElement>>({});
-  const [useImages, setUseImages] = useState(false);
 
-  // Preload plant images
+  // Preload block images
   useEffect(() => {
     const images: Record<string, HTMLImageElement> = {};
     let loadedCount = 0;
-    const totalImages = Object.keys(PLANT_IMAGES).length;
+    const totalImages = Object.keys(BLOCK_IMAGES).length;
 
-    Object.entries(PLANT_IMAGES).forEach(([plantType, src]) => {
+    if (totalImages === 0) {
+      setLoadedImages({});
+      return;
+    }
+
+    Object.entries(BLOCK_IMAGES).forEach(([blockType, src]) => {
       const img = new Image();
       img.onload = () => {
-        images[plantType] = img;
+        images[blockType] = img;
         loadedCount++;
         if (loadedCount === totalImages) {
           setLoadedImages(images);
         }
       };
       img.onerror = () => {
-        console.warn(`Failed to load image for ${plantType}`);
+        console.warn(`Failed to load image for ${blockType} from ${src}`);
         loadedCount++;
         if (loadedCount === totalImages) {
           setLoadedImages(images);
@@ -74,6 +80,7 @@ const IsometricGarden: React.FC = () => {
     const tileWidth = 64 * camera.zoom;
     const tileHeight = 32 * camera.zoom;
     
+    // This gives us the TOP point of the isometric tile
     const screenX = (x - y) * (tileWidth / 2) + camera.x + window.innerWidth / 2;
     const screenY = (x + y) * (tileHeight / 2) - z * (tileHeight) + camera.y + window.innerHeight / 2;
     
@@ -119,175 +126,168 @@ const IsometricGarden: React.FC = () => {
     ctx.closePath();
     ctx.stroke();
     
-    // Draw a semi-transparent preview if placing a block
-    if (selectedTool === 'block') {
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
-      ctx.fill();
-    }
+    // Draw a semi-transparent preview
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+    ctx.fill();
     
     ctx.restore();
-  }, [hoveredTile, isPanning, camera, worldToScreen, selectedTool]);
+  }, [hoveredTile, isPanning, camera, worldToScreen]);
 
   // Draw a single block
   const drawBlock = useCallback((ctx: CanvasRenderingContext2D, block: Block) => {
     const { x: screenX, y: screenY } = worldToScreen(block.x, block.y, block.z);
-    const size = 64 * camera.zoom;
-    const height = 32 * camera.zoom;
+    const size = 76 * camera.zoom;
+    const height = 36 * camera.zoom;
     
-    // Block colors
-    const colors = {
-      grass: { top: '#7ec850', side1: '#5ea838', side2: '#4e8830' },
-      dirt: { top: '#b8886f', side1: '#966e58', side2: '#7a5a48' },
-      stone: { top: '#a0a0a0', side1: '#808080', side2: '#606060' }
-    };
-    
-    const color = colors[block.type];
     const isHovered = hoveredBlock === block.id;
     
-    // Draw block faces
-    ctx.save();
-    
-    if (isHovered) {
-      ctx.globalAlpha = 0.8;
-    }
-    
-    // Top face
-    ctx.fillStyle = color.top;
-    ctx.beginPath();
-    ctx.moveTo(screenX, screenY);
-    ctx.lineTo(screenX + size / 2, screenY + height / 2);
-    ctx.lineTo(screenX, screenY + height);
-    ctx.lineTo(screenX - size / 2, screenY + height / 2);
-    ctx.closePath();
-    ctx.fill();
-    
-    // Right face
-    ctx.fillStyle = color.side1;
-    ctx.beginPath();
-    ctx.moveTo(screenX, screenY + height);
-    ctx.lineTo(screenX + size / 2, screenY + height / 2);
-    ctx.lineTo(screenX + size / 2, screenY + height / 2 + height);
-    ctx.lineTo(screenX, screenY + height + height);
-    ctx.closePath();
-    ctx.fill();
-    
-    // Left face
-    ctx.fillStyle = color.side2;
-    ctx.beginPath();
-    ctx.moveTo(screenX, screenY + height);
-    ctx.lineTo(screenX - size / 2, screenY + height / 2);
-    ctx.lineTo(screenX - size / 2, screenY + height / 2 + height);
-    ctx.lineTo(screenX, screenY + height + height);
-    ctx.closePath();
-    ctx.fill();
-    
-    // Draw outline if hovered
-    if (isHovered) {
-      ctx.strokeStyle = '#ffffff';
-      ctx.lineWidth = 2;
+    // Check if this block has an image
+    if (loadedImages[block.type]) {
+      // Draw the block image in isometric style
+      ctx.save();
+      
+      if (isHovered) {
+        ctx.globalAlpha = 0.8;
+      }
+      
+      const img = loadedImages[block.type];
+      const imgWidth = size;
+      const imgHeight = size;
+      
+      // Image should sit on the tile - its bottom should be at screenY + height
+      ctx.drawImage(
+        img,
+        screenX - imgWidth / 2,
+        screenY + height - imgHeight,
+        imgWidth,
+        imgHeight
+      );
+      
+      // Draw outline if hovered
+      if (isHovered) {
+        ctx.globalAlpha = 1;
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([]);
+        
+        // Draw isometric outline at the tile position
+        ctx.beginPath();
+        ctx.moveTo(screenX, screenY);
+        ctx.lineTo(screenX + size / 2, screenY + height / 2);
+        ctx.lineTo(screenX, screenY + height);
+        ctx.lineTo(screenX - size / 2, screenY + height / 2);
+        ctx.closePath();
+        ctx.stroke();
+      }
+      
+      ctx.restore();
+    } else {
+      // Draw regular blocks without images
+      
+      // Block colors
+      const colors: Record<string, { top: string; side1: string; side2: string }> = {
+        grass: { top: '#7ec850', side1: '#5ea838', side2: '#4e8830' },
+        dirt: { top: '#b8886f', side1: '#966e58', side2: '#7a5a48' },
+        stone: { top: '#a0a0a0', side1: '#808080', side2: '#606060' },
+        flower: { top: '#ff6b9d', side1: '#e85a8c', side2: '#d1497b' },
+        tree: { top: '#228b22', side1: '#1a6b1a', side2: '#125012' },
+        bush: { top: '#3cb371', side1: '#2ca25f', side2: '#1c914e' },
+        'morning-glory': { top: '#7b9ff2', side1: '#6a8ee1', side2: '#597dd0' }
+      };
+      
+      const color = colors[block.type] || colors.grass;
+      
+      // Draw block faces
+      ctx.save();
+      
+      if (isHovered) {
+        ctx.globalAlpha = 0.8;
+      }
+      
+      // Top face of the block
+      ctx.fillStyle = color.top;
       ctx.beginPath();
       ctx.moveTo(screenX, screenY);
       ctx.lineTo(screenX + size / 2, screenY + height / 2);
       ctx.lineTo(screenX, screenY + height);
       ctx.lineTo(screenX - size / 2, screenY + height / 2);
       ctx.closePath();
-      ctx.stroke();
-    }
-    
-    ctx.restore();
-    
-    // Draw plant if exists
-    if (block.plant) {
-      drawPlant(ctx, block);
-    }
-  }, [camera, worldToScreen, hoveredBlock]);
-
-  // Draw plants on blocks
-  const drawPlant = useCallback((ctx: CanvasRenderingContext2D, block: Block) => {
-    if (!block.plant) return;
-    
-    const { x: screenX, y: screenY } = worldToScreen(block.x, block.y, block.z + 1);
-    const size = 32 * camera.zoom;
-    
-    ctx.save();
-    
-    // Try to use image if available and enabled
-    if (useImages && loadedImages[block.plant]) {
-      const img = loadedImages[block.plant];
-      const imgSize = size * 2;
-      ctx.drawImage(
-        img,
-        screenX - imgSize / 2,
-        screenY - imgSize,
-        imgSize,
-        imgSize
-      );
-    } else {
-      // Fallback to canvas drawings
-      switch (block.plant) {
-        case 'flower':
-          // Draw flower stem
-          ctx.strokeStyle = '#2d5016';
-          ctx.lineWidth = 3 * camera.zoom;
-          ctx.beginPath();
-          ctx.moveTo(screenX, screenY);
-          ctx.lineTo(screenX, screenY - size);
-          ctx.stroke();
-          
-          // Draw flower petals
-          ctx.fillStyle = '#ff6b9d';
-          for (let i = 0; i < 5; i++) {
-            const angle = (i * 72 * Math.PI) / 180;
-            const petalX = screenX + Math.cos(angle) * size * 0.3;
-            const petalY = screenY - size + Math.sin(angle) * size * 0.3;
+      ctx.fill();
+      
+      // Right face
+      ctx.fillStyle = color.side1;
+      ctx.beginPath();
+      ctx.moveTo(screenX, screenY + height);
+      ctx.lineTo(screenX + size / 2, screenY + height / 2);
+      ctx.lineTo(screenX + size / 2, screenY + height / 2 + height);
+      ctx.lineTo(screenX, screenY + height + height);
+      ctx.closePath();
+      ctx.fill();
+      
+      // Left face
+      ctx.fillStyle = color.side2;
+      ctx.beginPath();
+      ctx.moveTo(screenX, screenY + height);
+      ctx.lineTo(screenX - size / 2, screenY + height / 2);
+      ctx.lineTo(screenX - size / 2, screenY + height / 2 + height);
+      ctx.lineTo(screenX, screenY + height + height);
+      ctx.closePath();
+      ctx.fill();
+      
+      // Draw simple plant decorations on top for plant blocks
+      if (['flower', 'tree', 'bush'].includes(block.type)) {
+        ctx.save();
+        const plantSize = size * 0.4;
+        
+        switch (block.type) {
+          case 'flower':
+            // Draw simple flower
+            ctx.fillStyle = '#ffffff';
             ctx.beginPath();
-            ctx.arc(petalX, petalY, size * 0.2, 0, Math.PI * 2);
+            ctx.arc(screenX, screenY + height / 2, plantSize * 0.3, 0, Math.PI * 2);
             ctx.fill();
-          }
-          
-          // Draw flower center
-          ctx.fillStyle = '#ffd93d';
-          ctx.beginPath();
-          ctx.arc(screenX, screenY - size, size * 0.15, 0, Math.PI * 2);
-          ctx.fill();
-          break;
-          
-        case 'tree':
-          // Draw tree trunk
-          ctx.fillStyle = '#8b4513';
-          ctx.fillRect(screenX - size * 0.15, screenY - size * 1.5, size * 0.3, size * 1.5);
-          
-          // Draw tree leaves
-          ctx.fillStyle = '#228b22';
-          ctx.beginPath();
-          ctx.arc(screenX, screenY - size * 1.8, size * 0.8, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.beginPath();
-          ctx.arc(screenX - size * 0.4, screenY - size * 1.5, size * 0.6, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.beginPath();
-          ctx.arc(screenX + size * 0.4, screenY - size * 1.5, size * 0.6, 0, Math.PI * 2);
-          ctx.fill();
-          break;
-          
-        case 'bush':
-          // Draw bush
-          ctx.fillStyle = '#3cb371';
-          ctx.beginPath();
-          ctx.arc(screenX, screenY - size * 0.3, size * 0.5, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.beginPath();
-          ctx.arc(screenX - size * 0.3, screenY - size * 0.2, size * 0.4, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.beginPath();
-          ctx.arc(screenX + size * 0.3, screenY - size * 0.2, size * 0.4, 0, Math.PI * 2);
-          ctx.fill();
-          break;
+            break;
+            
+          case 'tree':
+            // Draw simple tree shape
+            ctx.fillStyle = '#0f5f0f';
+            ctx.beginPath();
+            ctx.moveTo(screenX, screenY);
+            ctx.lineTo(screenX + plantSize / 2, screenY + height / 2);
+            ctx.lineTo(screenX - plantSize / 2, screenY + height / 2);
+            ctx.closePath();
+            ctx.fill();
+            break;
+            
+          case 'bush':
+            // Draw simple circles for bush
+            ctx.fillStyle = '#2a8a4a';
+            ctx.beginPath();
+            ctx.arc(screenX - plantSize * 0.2, screenY + height / 2, plantSize * 0.2, 0, Math.PI * 2);
+            ctx.arc(screenX + plantSize * 0.2, screenY + height / 2, plantSize * 0.2, 0, Math.PI * 2);
+            ctx.fill();
+            break;
+        }
+        
+        ctx.restore();
       }
+      
+      // Draw outline if hovered
+      if (isHovered) {
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(screenX, screenY);
+        ctx.lineTo(screenX + size / 2, screenY + height / 2);
+        ctx.lineTo(screenX, screenY + height);
+        ctx.lineTo(screenX - size / 2, screenY + height / 2);
+        ctx.closePath();
+        ctx.stroke();
+      }
+      
+      ctx.restore();
     }
-    
-    ctx.restore();
-  }, [camera, worldToScreen, loadedImages, useImages]);
+  }, [camera, worldToScreen, hoveredBlock, loadedImages]);
 
   // Render the scene
   const render = useCallback(() => {
@@ -378,32 +378,20 @@ const IsometricGarden: React.FC = () => {
       setIsPanning(true);
       setPanStart({ x: e.clientX - camera.x, y: e.clientY - camera.y });
     } else if (e.button === 0) {
-      // Left click for placing blocks/plants
+      // Left click for placing blocks
       const { x, y } = screenToWorld(e.clientX, e.clientY);
       
-      if (selectedTool === 'block') {
-        // Check if block already exists at this position
-        const existingBlock = blocks.find(b => b.x === x && b.y === y && b.z === 0);
-        if (!existingBlock) {
-          const newBlock: Block = {
-            id: Date.now().toString(),
-            x,
-            y,
-            z: 0,
-            type: selectedBlockType
-          };
-          setBlocks([...blocks, newBlock]);
-        }
-      } else if (selectedTool === 'plant') {
-        // Find block at this position to plant on
-        const targetBlock = blocks.find(b => b.x === x && b.y === y && b.z === 0);
-        if (targetBlock && targetBlock.type === 'grass') {
-          setBlocks(blocks.map(b => 
-            b.id === targetBlock.id 
-              ? { ...b, plant: selectedPlantType }
-              : b
-          ));
-        }
+      // Check if block already exists at this position
+      const existingBlock = blocks.find(b => b.x === x && b.y === y && b.z === 0);
+      if (!existingBlock) {
+        const newBlock: Block = {
+          id: Date.now().toString(),
+          x,
+          y,
+          z: 0,
+          type: selectedBlockType
+        };
+        setBlocks([...blocks, newBlock]);
       }
     }
   };
@@ -473,108 +461,75 @@ const IsometricGarden: React.FC = () => {
         </div>
         
         <div>
-          <label className="block text-sm font-medium mb-2">Tool:</label>
-          <div className="flex gap-2">
-            <button
-              onClick={() => setSelectedTool('block')}
-              className={`px-3 py-1 rounded ${
-                selectedTool === 'block' 
-                  ? 'bg-blue-500 text-white' 
-                  : 'bg-gray-200 hover:bg-gray-300'
-              }`}
-            >
-              Block
-            </button>
-            <button
-              onClick={() => setSelectedTool('plant')}
-              className={`px-3 py-1 rounded ${
-                selectedTool === 'plant' 
-                  ? 'bg-green-500 text-white' 
-                  : 'bg-gray-200 hover:bg-gray-300'
-              }`}
-            >
-              Plant
-            </button>
+          <label className="block text-sm font-medium mb-2">Block Type:</label>
+          <div className="grid grid-cols-2 gap-2">
+            {/* Terrain blocks */}
+            <div className="col-span-2">
+              <p className="text-xs text-gray-500 mb-1">Terrain</p>
+              <div className="flex gap-2">
+                {(['grass', 'dirt', 'stone'] as const).map(type => (
+                  <button
+                    key={type}
+                    onClick={() => setSelectedBlockType(type)}
+                    className={`px-3 py-1 rounded capitalize text-sm ${
+                      selectedBlockType === type 
+                        ? 'bg-blue-500 text-white' 
+                        : 'bg-gray-200 hover:bg-gray-300'
+                    }`}
+                  >
+                    {type}
+                    {loadedImages[type] && <span className="ml-1">🖼️</span>}
+                  </button>
+                ))}
+              </div>
+            </div>
+            
+            {/* Plant blocks */}
+            <div className="col-span-2">
+              <p className="text-xs text-gray-500 mb-1">Plants</p>
+              <div className="flex flex-wrap gap-2">
+                {(['flower', 'tree', 'bush', 'morning-glory'] as const).map(type => (
+                  <button
+                    key={type}
+                    onClick={() => setSelectedBlockType(type)}
+                    className={`px-3 py-1 rounded capitalize text-sm ${
+                      selectedBlockType === type 
+                        ? 'bg-green-500 text-white' 
+                        : 'bg-gray-200 hover:bg-gray-300'
+                    }`}
+                  >
+                    {type === 'morning-glory' ? 'Morning Glory' : type}
+                    {loadedImages[type] && <span className="ml-1">🖼️</span>}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
-        
-        {selectedTool === 'block' && (
-          <div>
-            <label className="block text-sm font-medium mb-2">Block Type:</label>
-            <div className="flex gap-2">
-              {(['grass', 'dirt', 'stone'] as const).map(type => (
-                <button
-                  key={type}
-                  onClick={() => setSelectedBlockType(type)}
-                  className={`px-3 py-1 rounded capitalize ${
-                    selectedBlockType === type 
-                      ? 'bg-blue-500 text-white' 
-                      : 'bg-gray-200 hover:bg-gray-300'
-                  }`}
-                >
-                  {type}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-        
-        {selectedTool === 'plant' && (
-          <div>
-            <label className="block text-sm font-medium mb-2">Plant Type:</label>
-            <div className="flex gap-2">
-              {(['flower', 'tree', 'bush'] as const).map(type => (
-                <button
-                  key={type}
-                  onClick={() => setSelectedPlantType(type)}
-                  className={`px-3 py-1 rounded capitalize ${
-                    selectedPlantType === type 
-                      ? 'bg-green-500 text-white' 
-                      : 'bg-gray-200 hover:bg-gray-300'
-                  }`}
-                >
-                  {type}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
         
         <div className="text-sm text-gray-600">
           <p>Blocks: {blocks.length}</p>
-          <p>Plants: {blocks.filter(b => b.plant).length}</p>
           <p className="text-xs mt-1">Canvas: Infinite ∞</p>
-        </div>
-
-        {/* Toggle for using images */}
-        <div className="flex items-center gap-2">
-          <input
-            type="checkbox"
-            id="useImages"
-            checked={useImages}
-            onChange={(e) => setUseImages(e.target.checked)}
-            className="rounded"
-          />
-          <label htmlFor="useImages" className="text-sm">
-            Use image sprites
-            {Object.keys(loadedImages).length > 0 && 
-              <span className="text-green-600 ml-1">
-                ({Object.keys(loadedImages).length} loaded)
-              </span>
-            }
-          </label>
+          {Object.keys(loadedImages).length > 0 && (
+            <p className="text-xs text-green-600 mt-1">
+              ✓ {Object.keys(loadedImages).length} images loaded
+            </p>
+          )}
         </div>
       </div>
 
-      {/* Instructions for adding custom images */}
+      {/* Instructions */}
       <div className="absolute bottom-4 left-4 bg-white rounded-lg shadow-lg p-4 max-w-md">
-        <h4 className="font-semibold mb-2">Adding Custom Plant Images:</h4>
-        <ol className="text-sm text-gray-600 space-y-1">
-          <li>1. Create a <code className="bg-gray-100 px-1">public/plants/</code> folder</li>
-          <li>2. Add your plant images: <code className="bg-gray-100 px-1">flower.png</code>, <code className="bg-gray-100 px-1">tree.png</code>, <code className="bg-gray-100 px-1">bush.png</code></li>
-          <li>3. Toggle "Use image sprites" to see them</li>
-          <li>4. Images should be square with transparent backgrounds</li>
-        </ol>
+        <h4 className="font-semibold mb-2">Custom Block Images:</h4>
+        <div className="text-sm text-gray-600 space-y-1">
+          <p>To add custom images for blocks:</p>
+          <ul className="list-disc list-inside ml-2">
+            <li>Morning Glory: <code className="bg-gray-100 px-1 text-xs">public/plants/morning-glory.png</code></li>
+            <li>Dirt: <code className="bg-gray-100 px-1 text-xs">public/blocks/dirt.png</code></li>
+            <li>Add more in <code className="bg-gray-100 px-1 text-xs">BLOCK_IMAGES</code> config</li>
+          </ul>
+          <p className="text-xs mt-2">Blocks with images show 🖼️ icon</p>
+        </div>
       </div>
     </div>
   );
