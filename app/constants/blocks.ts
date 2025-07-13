@@ -14,15 +14,9 @@ export interface BlockType {
 export const BLOCK_TYPES: Record<string, BlockType> = {
   'dirt': {
     id: 'dirt',
-    name: 'Dirt',
+    name: 'Grass',
+    latinName: 'Poaceae',
     imagePath: '/plants/dirt-p.png',
-    category: 'terrain',
-    rarity: 'common'
-  },
-  'tilled-grass': {
-    id: 'tilled-grass',
-    name: 'Tilled Grass',
-    imagePath: '/blocks/tilled-grass.png',
     category: 'terrain',
     rarity: 'common'
   },

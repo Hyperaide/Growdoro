@@ -11,7 +11,10 @@
   "dependencies": {
     "@floating-ui/react": "^0.27.13",
     "@instantdb/react": "^0.20.6",
+    "@number-flow/react": "^0.5.10",
     "@phosphor-icons/react": "^2.1.10",
+    "canvas-confetti": "^1.9.3",
+    "luxon": "^3.7.1",
     "motion": "^12.23.3",
     "next": "15.3.5",
     "react": "^19.0.0",
@@ -19,6 +22,8 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
+    "@types/canvas-confetti": "^1.9.0",
+    "@types/luxon": "^3.6.2",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",

@@ -8,6 +8,8 @@ import { HourglassIcon } from '@phosphor-icons/react';
 import { db } from '../../lib/db';
 import { id } from '@instantdb/react';
 import { XIcon } from '@phosphor-icons/react';
+import { DateTime } from 'luxon';
+import Dock from './Dock';
 
 interface Block {
   id: string;
@@ -16,6 +18,7 @@ interface Block {
   z: number;
   type: BlockTypeId;
   placedAt?: number; // Timestamp when block was placed for animation
+  plantedAt?: number; // Timestamp when plant was planted (for growth tracking)
 }
 
 interface Camera {
@@ -28,7 +31,6 @@ const IsometricGarden: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [blocks, setBlocks] = useState<Block[]>([]);
   const [camera, setCamera] = useState<Camera>({ x: 0, y: 0, zoom: 1 });
-  const [selectedBlockType, setSelectedBlockType] = useState<BlockTypeId>('dirt');
   const [isPanning, setIsPanning] = useState(false);
   const [panStart, setPanStart] = useState({ x: 0, y: 0 });
   const [hoveredBlock, setHoveredBlock] = useState<string | null>(null);
@@ -38,7 +40,7 @@ const IsometricGarden: React.FC = () => {
   const [draggedBlock, setDraggedBlock] = useState<Block | null>(null);
   const [selectedBlock, setSelectedBlock] = useState<Block | null>(null);
   const [isSlideoverOpen, setIsSlideoverOpen] = useState(false);
-  const [isMainSlideoverOpen, setIsMainSlideoverOpen] = useState(false);
+  const [isMainSlideoverOpen, setIsMainSlideoverOpen] = useState(true);
   const [selectedInventoryBlock, setSelectedInventoryBlock] = useState<string | null>(null);
   const [browserSessionId, setBrowserSessionId] = useState<string>('');
 
@@ -55,18 +57,102 @@ const IsometricGarden: React.FC = () => {
     setBrowserSessionId(sessionId);
   }, []);
 
+  // Load blocks from database on initial load
+  useEffect(() => {
+    if (!browserSessionId) return;
+
+    const loadBlocks = async () => {
+      try {
+        // Query for all blocks belonging to this session
+        const { data } = await db.queryOnce({
+          blocks: {
+            $: {
+              where: {
+                sessionId: browserSessionId
+              }
+            }
+          }
+        });
+
+        if (data?.blocks && data.blocks.length > 0) {
+          // Filter for blocks that have been placed (have x, y coordinates)
+          // and convert database blocks to our local Block format
+          const loadedBlocks: Block[] = data.blocks
+            .filter(dbBlock => dbBlock.x !== null && dbBlock.x !== undefined && 
+                               dbBlock.y !== null && dbBlock.y !== undefined)
+            .map(dbBlock => ({
+              id: dbBlock.id,
+              x: dbBlock.x!,
+              y: dbBlock.y!,
+              z: dbBlock.z || 0,
+              type: dbBlock.type as BlockTypeId,
+              // Don't set placedAt for loaded blocks to avoid animation
+              placedAt: undefined,
+              // Include plantedAt if it exists (parse ISO string to timestamp)
+              plantedAt: dbBlock.plantedAt ? new Date(dbBlock.plantedAt).getTime() : undefined
+            }));
+
+          setBlocks(loadedBlocks);
+        } else {
+          // New user - create default 2x2 grass blocks
+          const defaultBlocks: Block[] = [];
+          const positions = [
+            { x: 0, y: 0 },
+            { x: 1, y: 0 },
+            { x: 0, y: 1 },
+            { x: 1, y: 1 }
+          ];
+
+          // Create blocks in database and local state
+          const transactions = positions.map(pos => {
+            const blockId = id();
+            defaultBlocks.push({
+              id: blockId,
+              x: pos.x,
+              y: pos.y,
+              z: 0,
+              type: 'dirt',
+              placedAt: undefined // No animation for initial blocks
+            });
+
+            return db.tx.blocks[blockId].update({
+              x: pos.x,
+              y: pos.y,
+              z: 0,
+              type: 'dirt',
+              sessionId: browserSessionId
+            });
+          });
+
+          try {
+            await db.transact(transactions);
+            setBlocks(defaultBlocks);
+          } catch (error) {
+            console.error('Failed to create default blocks:', error);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to load blocks from database:', error);
+      }
+    };
+
+    loadBlocks();
+  }, [browserSessionId]);
+
   // Preload block images
   useEffect(() => {
     const images: Record<string, HTMLImageElement> = {};
     let loadedCount = 0;
     const blockEntries = Object.entries(BLOCK_TYPES);
-    const totalImages = blockEntries.length;
+    // Add 1 for the tilled-grass image
+    const totalImages = blockEntries.length + 1;
 
-    if (totalImages === 0) {
+    if (blockEntries.length === 0) {
       setLoadedImages({});
       return;
     }
 
+    // Preload all block images
     blockEntries.forEach(([blockId, blockType]) => {
       const img = new Image();
       img.onload = () => {
@@ -85,6 +171,24 @@ const IsometricGarden: React.FC = () => {
       };
       img.src = blockType.imagePath;
     });
+
+    // Also preload the tilled-grass image for growing plants
+    const tilledGrassImg = new Image();
+    tilledGrassImg.onload = () => {
+      images['tilled-grass'] = tilledGrassImg;
+      loadedCount++;
+      if (loadedCount === totalImages) {
+        setLoadedImages(images);
+      }
+    };
+    tilledGrassImg.onerror = () => {
+      console.warn('Failed to load tilled-grass image');
+      loadedCount++;
+      if (loadedCount === totalImages) {
+        setLoadedImages(images);
+      }
+    };
+    tilledGrassImg.src = '/blocks/tilled-grass.png';
   }, []);
 
   // Convert world coordinates to screen coordinates
@@ -172,8 +276,24 @@ const IsometricGarden: React.FC = () => {
       animationOffset = (1 - easeOutBack(progress)) * 15; // Start 15 pixels higher
     }
     
-    // All blocks must have images now
-    const img = loadedImages[block.type];
+    // Determine which image to show based on growth status
+    let imageToShow = block.type;
+    const blockType = BLOCK_TYPES[block.type];
+    
+    // Check if this is a plant that needs to grow
+    let img: HTMLImageElement | undefined;
+    if (blockType && blockType.category === 'plant' && blockType.growthTime && block.plantedAt) {
+      const daysSincePlanted = (Date.now() - block.plantedAt) / (1000 * 60 * 60 * 24);
+      if (daysSincePlanted < blockType.growthTime) {
+        // Show tilled grass image directly while growing
+        img = loadedImages['tilled-grass'];
+      }
+    }
+    
+    // Use the block's image if not a growing plant
+    if (!img) {
+      img = loadedImages[imageToShow];
+    }
     if (img) {
       // Draw the block image in isometric style
       ctx.save();
@@ -394,22 +514,14 @@ const IsometricGarden: React.FC = () => {
         // Regular click on a block opens the slideover
         setSelectedBlock(existingBlock);
         setIsSlideoverOpen(true);
+        // Prevent the click from propagating to avoid immediate closure
+        e.stopPropagation();
       } else if (!existingBlock && !isDragging) {
         // Place a block from inventory if selected
         if (selectedInventoryBlock) {
           handlePlaceBlockFromInventory(x, y);
-        } else {
-          // Regular click to place a new block
-          const newBlock: Block = {
-            id: Date.now().toString(),
-            x,
-            y,
-            z: 0,
-            type: selectedBlockType,
-            placedAt: Date.now()
-          };
-          setBlocks([...blocks, newBlock]);
         }
+        // Remove the else clause - no default placement without inventory selection
       }
     }
   };
@@ -438,13 +550,24 @@ const IsometricGarden: React.FC = () => {
       return;
     }
 
+    // Get block type and current time
+    const blockType = BLOCK_TYPES[selectedInventoryBlock as BlockTypeId];
+    const now = Date.now();
+    
     // Update the block in the database with its position
+    const updateData: any = {
+      x,
+      y,
+      z: 0
+    };
+    
+    // If it's a plant being placed for the first time, set plantedAt
+    if (blockType && blockType.category === 'plant' && !unplacedBlock.plantedAt) {
+      updateData.plantedAt = new Date(now).toISOString();
+    }
+    
     await db.transact(
-      db.tx.blocks[unplacedBlock.id].update({
-        x,
-        y,
-        z: 0
-      })
+      db.tx.blocks[unplacedBlock.id].update(updateData)
     );
 
     // Add to local state
@@ -454,7 +577,11 @@ const IsometricGarden: React.FC = () => {
       y,
       z: 0,
       type: selectedInventoryBlock as BlockTypeId,
-      placedAt: Date.now()
+      placedAt: now,
+      // If it's a plant being placed for the first time, set plantedAt to now
+      plantedAt: blockType && blockType.category === 'plant' && !unplacedBlock.plantedAt 
+        ? now 
+        : unplacedBlock.plantedAt ? new Date(unplacedBlock.plantedAt).getTime() : undefined
     };
     setBlocks([...blocks, newBlock]);
     
@@ -514,6 +641,17 @@ const IsometricGarden: React.FC = () => {
           placedAt: Date.now() // Trigger animation for moved block
         };
         setBlocks([...blocks, movedBlock]);
+        
+        // Update position in database
+        db.transact(
+          db.tx.blocks[movedBlock.id].update({
+            x,
+            y,
+            z: 0
+          })
+        ).catch(error => {
+          console.error('Failed to update block position in database:', error);
+        });
       } else {
         // Position occupied, return block to original position
         setBlocks([...blocks, draggedBlock]);
@@ -539,53 +677,13 @@ const IsometricGarden: React.FC = () => {
 
   const handleContextMenu = (e: React.MouseEvent) => {
     e.preventDefault();
-    // Right click to remove blocks
-    const { x, y } = screenToWorld(e.clientX, e.clientY);
-    setBlocks(blocks.filter(b => !(b.x === x && b.y === y && b.z === 0)));
+    // Right click disabled - blocks cannot be deleted, only moved
   };
 
-  const handleDeleteBlock = (blockId: string) => {
-    setBlocks(blocks.filter(b => b.id !== blockId));
-  };
+
 
   const handleUpdateBlock = (blockId: string, updates: Partial<Block>) => {
     setBlocks(blocks.map(b => b.id === blockId ? { ...b, ...updates } : b));
-  };
-
-  const handleDuplicateBlock = (block: Block) => {
-    // Find an empty spot near the original block
-    let offsetX = 1;
-    let offsetY = 0;
-    let newX = block.x + offsetX;
-    let newY = block.y + offsetY;
-    
-    // Check for empty spot in a spiral pattern
-    while (blocks.some(b => b.x === newX && b.y === newY && b.z === 0)) {
-      if (offsetX === 1 && offsetY === 0) {
-        offsetX = 0; offsetY = 1;
-      } else if (offsetX === 0 && offsetY === 1) {
-        offsetX = -1; offsetY = 0;
-      } else if (offsetX === -1 && offsetY === 0) {
-        offsetX = 0; offsetY = -1;
-      } else if (offsetX === 0 && offsetY === -1) {
-        offsetX = 2; offsetY = 0;
-      } else {
-        // Continue spiral pattern
-        offsetX += 1;
-      }
-      newX = block.x + offsetX;
-      newY = block.y + offsetY;
-    }
-    
-    const duplicatedBlock: Block = {
-      ...block,
-      id: Date.now().toString(),
-      x: newX,
-      y: newY,
-      placedAt: Date.now()
-    };
-    
-    setBlocks([...blocks, duplicatedBlock]);
   };
 
   return (
@@ -605,18 +703,10 @@ const IsometricGarden: React.FC = () => {
         onContextMenu={handleContextMenu}
       />
       
-      {/* Menu Button */}
-      <button
-        onClick={() => setIsMainSlideoverOpen(true)}
-        className="absolute top-4 left-4 bg-white rounded-lg shadow-lg p-3 hover:bg-gray-50 transition-colors"
-        aria-label="Open menu"
-      >
-        <HourglassIcon size={20} weight="fill" className="text-gray-800" />
-      </button>
 
       {/* Selected Block Indicator */}
       {selectedInventoryBlock && (
-        <div className="absolute top-4 left-20 bg-white rounded-lg shadow-lg p-3 flex items-center gap-2">
+        <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 bg-white rounded-lg shadow-lg p-3 flex items-center gap-2">
           <img
             src={BLOCK_TYPES[selectedInventoryBlock as BlockTypeId]?.imagePath}
             alt="Selected block"
@@ -641,7 +731,7 @@ const IsometricGarden: React.FC = () => {
         <div>
           <h3 className="font-bold text-lg mb-2">Garden Builder</h3>
           <p className="text-sm text-gray-600">
-            Left click: Place | Ctrl+click: Move | Right click: Remove | Shift+drag: Pan | Scroll: Zoom
+            Left click: Place | Ctrl+click: Move | Shift+drag: Pan | Scroll: Zoom
           </p>
         </div>
         
@@ -700,9 +790,7 @@ const IsometricGarden: React.FC = () => {
           setIsSlideoverOpen(false);
           setSelectedBlock(null);
         }}
-        onDelete={handleDeleteBlock}
         onUpdateBlock={handleUpdateBlock}
-        onDuplicateBlock={handleDuplicateBlock}
       />
 
       {/* Main Slideover */}

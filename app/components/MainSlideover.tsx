@@ -1,10 +1,11 @@
-import { XIcon, TimerIcon, PlayIcon, PauseIcon, CheckIcon, PackageIcon, PlantIcon, FlowerLotusIcon } from "@phosphor-icons/react";
-import { motion } from "motion/react";
+import { XIcon, TimerIcon, PlayIcon, PauseIcon, CheckIcon, PackageIcon, PlantIcon, FlowerLotusIcon, ListChecksIcon, ArrowsOutSimpleIcon } from "@phosphor-icons/react";
+import { motion, AnimatePresence } from "motion/react";
 import { useRef, useState, useEffect } from "react";
 import { db } from "../../lib/db";
 import { id } from "@instantdb/react";
 import { BLOCK_TYPES, BlockTypeId } from "../constants/blocks";
 import PackOpeningModal from "./PackOpeningModal";
+import NumberFlow, { NumberFlowGroup } from '@number-flow/react'
 
 interface MainSlideoverProps {
   isOpen: boolean;
@@ -45,17 +46,59 @@ const getBrowserSessionId = () => {
   return sessionId;
 };
 
-// Get random block types for rewards (excluding certain types)
+// Get random block types for rewards (ensuring at least one plant)
 const getRandomBlockTypes = (count: number): string[] => {
-  const availableTypes = Object.keys(BLOCK_TYPES).filter(
-    type => type !== 'dirt' && type !== 'tilled-grass' // Exclude basic terrain
-  );
-  
+  const allBlockIds = Object.keys(BLOCK_TYPES);
+  const plantIds = allBlockIds.filter(id => BLOCK_TYPES[id as BlockTypeId].category === 'plant');
   const selected: string[] = [];
-  for (let i = 0; i < count; i++) {
-    const randomIndex = Math.floor(Math.random() * availableTypes.length);
-    selected.push(availableTypes[randomIndex]);
+  
+  // Rarity weights (must sum to 100)
+  const rarityWeights = {
+    common: 60,
+    uncommon: 30,
+    rare: 8,
+    legendary: 2
+  };
+  
+  // Get a random block based on rarity weights
+  const getWeightedRandomBlock = (): string => {
+    const random = Math.random() * 100;
+    let cumulativeWeight = 0;
+    
+    for (const [rarity, weight] of Object.entries(rarityWeights)) {
+      cumulativeWeight += weight;
+      if (random < cumulativeWeight) {
+        // Get all blocks of this rarity
+        const blocksOfRarity = allBlockIds.filter(
+          id => BLOCK_TYPES[id as BlockTypeId].rarity === rarity
+        );
+        if (blocksOfRarity.length > 0) {
+          return blocksOfRarity[Math.floor(Math.random() * blocksOfRarity.length)];
+        }
+      }
+    }
+    
+    // Fallback to any random block
+    return allBlockIds[Math.floor(Math.random() * allBlockIds.length)];
+  };
+  
+  // Ensure at least one plant
+  if (plantIds.length > 0 && count > 0) {
+    const randomPlantIndex = Math.floor(Math.random() * plantIds.length);
+    selected.push(plantIds[randomPlantIndex]);
   }
+  
+  // Fill the rest with weighted random blocks
+  for (let i = selected.length; i < count; i++) {
+    selected.push(getWeightedRandomBlock());
+  }
+  
+  // Shuffle the array to randomize plant position
+  for (let i = selected.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [selected[i], selected[j]] = [selected[j], selected[i]];
+  }
+  
   return selected;
 };
 
@@ -66,7 +109,7 @@ export default function MainSlideover({ isOpen, onClose, selectedBlockType, onSe
   const [remainingTime, setRemainingTime] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
   const [browserSessionId, setBrowserSessionId] = useState<string>('');
-  const [activeTab, setActiveTab] = useState<'timer' | 'blocks'>('timer');
+  const [activeTab, setActiveTab] = useState<'timer' | 'sessions' | 'blocks' | 'packs' | 'help' | null>('timer');
   const [claimingReward, setClaimingReward] = useState(false);
   const [packOpeningRewards, setPackOpeningRewards] = useState<string[]>([]);
   const [showPackOpening, setShowPackOpening] = useState(false);
@@ -141,12 +184,6 @@ export default function MainSlideover({ isOpen, onClose, selectedBlockType, onSe
     const interval = setInterval(() => {
       setRemainingTime((prev) => {
         if (prev <= 1) {
-          // Complete the session
-          db.transact(
-            db.tx.sessions[activeSession.id].update({
-              completedAt: Date.now()
-            })
-          );
           return 0;
         }
         return prev - 1;
@@ -156,7 +193,48 @@ export default function MainSlideover({ isOpen, onClose, selectedBlockType, onSe
     return () => clearInterval(interval);
   }, [activeSession, isPaused]);
 
+  // Handle timer completion
+  useEffect(() => {
+    if (activeSession && remainingTime === 0 && !activeSession.completedAt) {
+      // Complete the session
+      db.transact(
+        db.tx.sessions[activeSession.id].update({
+          completedAt: Date.now()
+        })
+      );
+      
+      // Show browser notification
+      if ('Notification' in window) {
+        if (Notification.permission === 'granted') {
+          new Notification('Timer Complete! 🌱', {
+            body: `Your ${Math.floor(activeSession.timeInSeconds / 60)} minute focus session is complete. Claim your seed pack!`,
+            icon: '/plants/morning-glory.png', // Using an existing plant image as icon
+            tag: 'timer-complete',
+            requireInteraction: false
+          });
+        } else if (Notification.permission !== 'denied') {
+          // Request permission if not already denied
+          Notification.requestPermission().then(permission => {
+            if (permission === 'granted') {
+              new Notification('Timer Complete! 🌱', {
+                body: `Your ${Math.floor(activeSession.timeInSeconds / 60)} minute focus session is complete. Claim your seed pack!`,
+                icon: '/plants/morning-glory.png',
+                tag: 'timer-complete',
+                requireInteraction: false
+              });
+            }
+          });
+        }
+      }
+    }
+  }, [activeSession, remainingTime]);
+
   const startTimer = async () => {
+    // Request notification permission when starting timer
+    if ('Notification' in window && Notification.permission === 'default') {
+      await Notification.requestPermission();
+    }
+    
     const newSessionId = id();
     const newSession = {
       sessionId: browserSessionId,
@@ -194,6 +272,12 @@ export default function MainSlideover({ isOpen, onClose, selectedBlockType, onSe
     setActiveSession(null);
     setRemainingTime(0);
     setIsPaused(false);
+
+    if (activeSession) {
+      db.transact(
+        db.tx.sessions[activeSession.id].delete()
+      );
+    }
   };
 
   const claimReward = async (session: Session) => {
@@ -202,8 +286,18 @@ export default function MainSlideover({ isOpen, onClose, selectedBlockType, onSe
     setClaimingReward(true);
     
     try {
-      // Get 3 random block types
-      const rewardBlocks = getRandomBlockTypes(3);
+      // Determine pack size based on session duration
+      let packSize = 3; // Default for < 30 mins
+      const minutes = Math.floor(session.timeInSeconds / 60);
+      
+      if (minutes >= 60) {
+        packSize = 6; // 1 hour or more
+      } else if (minutes >= 30) {
+        packSize = 3; // Still 3 for 30-59 minutes
+      }
+      
+      // Get random block types
+      const rewardBlocks = getRandomBlockTypes(packSize);
       
       // Show pack opening animation
       setPackOpeningRewards(rewardBlocks);
@@ -248,205 +342,420 @@ export default function MainSlideover({ isOpen, onClose, selectedBlockType, onSe
   return (
     <>
       <motion.div
-          initial={{ x: '-100%' }}
-          animate={{ x: isOpen ? 0 : '-100%' }}
-          transition={{ duration: 0.2, ease: 'easeInOut' }}
+          initial={{ x: '-100%', opacity: 0 }}
+          animate={{ x: isOpen ? 0 : '-100%', opacity: isOpen ? 1 : 0 }}
+          transition={{ 
+            duration: 0.2, 
+            ease: 'easeInOut'
+          }}
           ref={mainSlideoverRef}
-          className={`fixed left-2 bottom-2 top-2 w-full max-w-md overflow-y-auto bg-white rounded-xl strong-shadow z-50 p-4`}
+          className={`fixed left-2 bottom-2 top-2 w-full overflow-y-auto max-w-sm ${activeTab === null ? 'h-min' : 'h-max max-h-[70%]'} bg-white rounded-xl strong-shadow z-50 p-2`}
           onClick={(e) => e.stopPropagation()}
           tabIndex={-1}
       >
-        <div className="h-full flex flex-col gap-4">
-          <div className="flex justify-between items-center">
-            <h1 className="text-md font-semibold flex items-center gap-2">
-              <TimerIcon size={20} weight="fill" />
-              Garden Timer
-            </h1>
-            {onClose && (
-              <button
-                onClick={onClose}
-                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-                aria-label="Close slideover"
-              >
-                <XIcon size={16} weight="bold" className="text-gray-800" />
-              </button>
+        <div className="h-full flex flex-col gap-2">
+          <div className="flex flex-row justify-between items-start">
+            <div className="flex flex-col p-2">
+              <h1 className="text-xs font-medium font-mono">{new Date(Date.now()).toLocaleTimeString()}</h1>
+              <p className="text-xs font-medium text-gray-500">{new Date(Date.now()).toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'long' }).replace(/(\d+)/, (match) => {
+                const day = parseInt(match);
+                const suffix = day === 1 || day === 21 || day === 31 ? 'st' :
+                             day === 2 || day === 22 ? 'nd' :
+                             day === 3 || day === 23 ? 'rd' : 'th';
+                return day + suffix;
+              })}</p>
+            </div>
+
+            
+            {activeTab !== null && (
+            <button
+              onClick={() => setActiveTab(null as any)}
+              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              aria-label="Collapse view"
+            >
+              <ArrowsOutSimpleIcon size={14} weight="bold" className="text-gray-800" />
+            </button>
             )}
           </div>
+          <div className="flex flex-row justify-between items-center">
+            <div className="flex flex-row items-center gap-2">
+              <button 
+                className={`flex flex-row items-center gap-1 px-2 py-1 rounded-lg transition-colors ${activeTab === 'timer' ? 'bg-gray-200' : 'bg-transparent hover:bg-gray-100'}`} 
+                onClick={() => setActiveTab('timer')}
+              >
+                {/* <TimerIcon size={16} weight="bold" /> */}
+                <h1 className="text-xs font-medium font-mono uppercase">Timer</h1>
+              </button>
+              {/* <button 
+                className={`flex flex-row items-center gap-1 px-2 py-1 rounded-lg transition-colors ${activeTab === 'sessions' ? 'bg-gray-200' : 'bg-transparent hover:bg-gray-100'}`} 
+                onClick={() => setActiveTab('sessions')}
+              >
+                <h1 className="text-xs font-medium font-mono uppercase">Sessions</h1>
+              </button> */}
+              <button 
+                className={`flex flex-row items-center gap-1 px-2 py-1 rounded-lg transition-colors ${activeTab === 'packs' ? 'bg-gray-200' : 'bg-transparent hover:bg-gray-100'}`} 
+                onClick={() => setActiveTab('packs')}
+              >
+                {/* <PackageIcon size={16} weight="bold" /> */}
+                <h1 className="text-xs font-medium font-mono uppercase">Packs</h1>
 
-          {/* Tabs */}
-          <div className="flex gap-2 border-b border-gray-200">
-            <button
-              onClick={() => setActiveTab('timer')}
-              className={`pb-2 px-1 text-sm font-medium border-b-2 transition-colors ${
-                activeTab === 'timer' 
-                  ? 'border-green-600 text-green-600' 
-                  : 'border-transparent text-gray-500 hover:text-gray-700'
-              }`}
-            >
-              Timer
-            </button>
-            <button
-              onClick={() => setActiveTab('blocks')}
-              className={`pb-2 px-1 text-sm font-medium border-b-2 transition-colors flex items-center gap-1 ${
-                activeTab === 'blocks' 
-                  ? 'border-green-600 text-green-600' 
-                  : 'border-transparent text-gray-500 hover:text-gray-700'
-              }`}
-            >
-              Blocks
-              {Object.keys(blockInventory).length > 0 && (
-                <span className="bg-green-100 text-green-700 text-xs px-1.5 py-0.5 rounded-full">
-                  {Object.values(blockInventory).reduce((a, b) => a + b, 0)}
-                </span>
-              )}
-            </button>
+                {sessions.filter(s => s.completedAt && !s.rewardsClaimedAt).length > 0 && (
+                  <span className=" bg-green-500 rounded-full h-2 w-2 ml-1">
+        
+                  </span>
+                )}
+              </button>
+              <button 
+                className={`flex flex-row items-center gap-1 px-2 py-1 rounded-lg transition-colors ${activeTab === 'blocks' ? 'bg-gray-200' : 'bg-transparent hover:bg-gray-100'}`} 
+                onClick={() => setActiveTab('blocks')}
+              >
+                {/* <PlantIcon size={16} weight="bold" /> */}
+                <h1 className="text-xs font-medium font-mono uppercase">Seeds</h1>
+
+                {Object.keys(blockInventory).length > 0 && (
+                  <span className=" bg-green-500 rounded-full h-2 w-2 ml-1">
+        
+                  </span>
+                )}
+              </button>
+              <button 
+                className={`flex flex-row items-center gap-1 px-2 py-1 rounded-lg transition-colors ${activeTab === 'help' ? 'bg-gray-200' : 'bg-transparent hover:bg-gray-100'}`} 
+                onClick={() => setActiveTab('help')}
+              >
+                <h1 className="text-xs font-medium font-mono uppercase">Help</h1>
+              </button>
+            </div>
           </div>
 
-          {activeTab === 'timer' ? (
-            <>
-              {/* Timer Section */}
-              <div className="bg-gray-50 rounded-lg p-4 space-y-4">
+          
+          <AnimatePresence mode="wait">
+            {activeTab && (
+              <motion.div
+                key={activeTab}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.2 }}
+                className="flex-1"
+              >
+                {activeTab === 'timer' && (
+                  <div className="flex-1 overflow-y-auto">
+              <div className="rounded-lg p-2 space-y-4">
                 {!activeSession ? (
                   <>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="number"
-                        min="1"
-                        max="60"
-                        value={timerMinutes}
-                        onChange={(e) => setTimerMinutes(parseInt(e.target.value) || 25)}
-                        className="w-20 px-3 py-2 border border-gray-300 rounded-md text-center"
-                      />
-                      <span className="text-sm text-gray-600">minutes</span>
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-gray-600 font-mono uppercase">Duration</span>
+                        <NumberFlow value={timerMinutes} suffix=" MIN" className="text-sm font-semibold text-gray-800" />
+                      </div>
+                      <div className="relative">
+                        <input
+                          type="range"
+                          min="5"
+                          max="60"
+                          step="5"
+                          value={timerMinutes}
+                          onChange={(e) => setTimerMinutes(parseInt(e.target.value))}
+                          className="w-full h-2 bg-gray-100 rounded-lg appearance-none cursor-pointer slider"
+                          style={{
+                            background: `linear-gradient(to right, #10b981 0%, #10b981 ${((timerMinutes - 5) / 55) * 100}%, #e5e7eb ${((timerMinutes - 5) / 55) * 100}%, #e5e7eb 100%)`
+                          }}
+                        />
+                      </div>
+                      <div className="flex justify-between text-xs text-gray-500">
+                        <span>5</span>
+                        <span>15</span>
+                        <span>25</span>
+                        <span>35</span>
+                        <span>45</span>
+                        <span>60</span>
+                      </div>
                     </div>
                     <button
                       onClick={startTimer}
-                      className="w-full bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center gap-2"
+                      className=" bg-green-600 text-sm w-full text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center gap-2"
                       disabled={!browserSessionId}
                     >
-                      <PlayIcon size={16} weight="fill" />
+                      <PlayIcon size={12} weight="fill" />
                       Start Timer
                     </button>
                   </>
                 ) : (
                   <>
-                    <div className="text-center">
-                      <div className="text-3xl font-mono font-bold text-gray-800">
-                        {formatTime(remainingTime)}
-                      </div>
-                      {activeSession.completedAt && !activeSession.rewardsClaimedAt && (
-                        <button
-                          onClick={() => claimReward(activeSession)}
-                          disabled={claimingReward}
-                          className="mt-4 bg-yellow-500 text-white px-4 py-2 rounded-lg hover:bg-yellow-600 transition-colors flex items-center justify-center gap-2 mx-auto"
-                        >
-                          <PackageIcon size={16} weight="fill" />
-                          {claimingReward ? 'Claiming...' : 'Claim Reward (3 Seeds)'}
-                        </button>
-                      )}
-                      {activeSession.rewardsClaimedAt && (
-                        <div className="text-sm text-green-600 mt-2 flex items-center justify-center gap-1">
-                          <CheckIcon size={16} weight="bold" />
-                          Rewards Claimed!
+                    {/* Show timer view only if session is not completed */}
+                    {!activeSession.completedAt ? (
+                      <>
+                        <div className="text-center">
+                          <div className="text-4xl font-barlow font-bold text-gray-800">
+                            <NumberFlowGroup>
+                              <div style={{ fontVariantNumeric: 'tabular-nums', '--number-flow-char-height': '0.85em' } as React.CSSProperties}>
+                                <NumberFlow 
+                                  trend={-1} 
+                                  value={Math.floor(remainingTime / 60)} 
+                                  format={{ minimumIntegerDigits: 2 }} 
+                                />
+                                <NumberFlow
+                                  prefix=":"
+                                  trend={-1}
+                                  value={remainingTime % 60}
+                                  digits={{ 1: { max: 5 } }}
+                                  format={{ minimumIntegerDigits: 2 }}
+                                />
+                              </div>
+                            </NumberFlowGroup>
+                          </div>
                         </div>
-                      )}
-                    </div>
-                    {!activeSession.completedAt && (
-                      <div className="flex gap-2">
-                        <button
-                          onClick={pauseTimer}
-                          className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
-                          disabled={!!activeSession.completedAt}
-                        >
-                          {isPaused ? (
-                            <>
-                              <PlayIcon size={16} weight="fill" />
-                              Resume
-                            </>
-                          ) : (
-                            <>
-                              <PauseIcon size={16} weight="fill" />
-                              Pause
-                            </>
-                          )}
-                        </button>
-                        <button
-                          onClick={cancelTimer}
-                          className="flex-1 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors"
-                        >
-                          Cancel
-                        </button>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={pauseTimer}
+                            className="flex-1 text-xs font-medium font-mono uppercase bg-blue-100 text-blue-500 px-4 py-2 rounded-lg hover:bg-blue-500 hover:text-white transition-colors flex items-center justify-center gap-2"
+                            disabled={!!activeSession.completedAt}
+                          >
+                            {isPaused ? (
+                              <>
+                                <PlayIcon size={12} weight="fill" />
+                                Resume
+                              </>
+                            ) : (
+                              <>
+                                <PauseIcon size={12} weight="fill" />
+                                Pause
+                              </>
+                            )}
+                          </button>
+                          <button
+                            onClick={cancelTimer}
+                            className="flex-1 text-xs font-medium font-mono uppercase bg-red-100 text-red-500 px-4 py-2 rounded-lg hover:bg-red-500 hover:text-white transition-colors"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </>
+                    ) : (
+                      /* Timer completed - show completion message and reset */
+                      <div className="text-center py-4">
+                        <div className="mb-4">
+                          <CheckIcon size={48} weight="bold" className="text-green-600 mx-auto mb-2" />
+                          <h3 className="text-lg font-semibold text-gray-800">Session Complete!</h3>
+                          <p className="text-sm text-gray-600 mt-1">
+                            Great job! You completed a {Math.floor(activeSession.timeInSeconds / 60)} minute focus session.
+                          </p>
+                        </div>
+                        
+                        {!activeSession.rewardsClaimedAt ? (
+                          <button
+                            onClick={() => claimReward(activeSession)}
+                            disabled={claimingReward}
+                            className="bg-yellow-500 text-white px-6 py-3 rounded-lg hover:bg-yellow-600 transition-colors flex items-center justify-center gap-2 mx-auto text-sm font-medium"
+                          >
+                            <PackageIcon size={20} weight="fill" />
+                            {claimingReward ? 'Opening Pack...' : `Claim Your Pack (${activeSession.timeInSeconds >= 3600 ? '6' : '3'} Seeds)`}
+                          </button>
+                        ) : (
+                          <>
+                            <div className="text-sm text-green-600 mb-4 flex items-center justify-center gap-1">
+                              <CheckIcon size={16} weight="bold" />
+                              Pack Claimed!
+                            </div>
+                            <button
+                              onClick={() => {
+                                setActiveSession(null);
+                                setRemainingTime(0);
+                              }}
+                              className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors text-sm"
+                            >
+                              Start New Timer
+                            </button>
+                          </>
+                        )}
                       </div>
                     )}
                   </>
                 )}
               </div>
+            </div>
+          )}
 
-              {/* Sessions List */}
-              <div className="flex-1 overflow-y-auto">
-                <h2 className="text-sm font-semibold text-gray-700 mb-2">Your Sessions</h2>
-                {isLoading ? (
-                  <div className="text-sm text-gray-500">Loading sessions...</div>
-                ) : sessions.length === 0 ? (
-                  <div className="text-sm text-gray-500">No sessions yet. Start your first timer!</div>
-                ) : (
-                  <div className="space-y-2">
-                    {sessions
-                      .sort((a, b) => b.createdAt - a.createdAt)
-                      .slice(0, 10)
-                      .map((session) => (
-                      <div
-                        key={session.id}
-                        className="bg-gray-50 rounded-lg p-3 text-sm"
-                      >
-                        <div className="flex justify-between items-start">
-                          <div>
-                            <div className="font-medium text-gray-800">
-                              {formatSessionTime(session)}
-                            </div>
-                            <div className="text-xs text-gray-500">
-                              {new Date(session.createdAt).toLocaleString()}
-                            </div>
+          {/* Sessions Tab */}
+          {/* {activeTab === 'sessions' && (
+            <div className="flex-1 overflow-y-auto">
+              <h2 className="text-sm font-semibold text-gray-700 mb-2">Your Sessions</h2>
+              {isLoading ? (
+                <div className="text-sm text-gray-500">Loading sessions...</div>
+              ) : sessions.length === 0 ? (
+                <div className="text-sm text-gray-500">No sessions yet. Start your first timer!</div>
+              ) : (
+                <div className="space-y-2">
+                  {sessions
+                    .sort((a, b) => b.createdAt - a.createdAt)
+                    .slice(0, 10)
+                    .map((session) => (
+                    <div
+                      key={session.id}
+                      className="bg-gray-50 rounded-lg p-3 text-sm"
+                    >
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <div className="font-medium text-gray-800">
+                            {formatSessionTime(session)}
                           </div>
-                          <div className="flex items-center gap-1">
-                            {session.completedAt && !session.rewardsClaimedAt && (
-                              <button
-                                onClick={() => claimReward(session)}
-                                disabled={claimingReward}
-                                className="bg-yellow-500 text-white px-2 py-1 rounded text-xs hover:bg-yellow-600 transition-colors"
-                              >
-                                Claim
-                              </button>
-                            )}
-                            {session.rewardsClaimedAt && (
-                              <PackageIcon size={14} weight="fill" className="text-yellow-600" />
-                            )}
-                            {session.completedAt && (
-                              <CheckIcon size={14} weight="bold" className="text-green-600" />
-                            )}
-                            {session.paused && !session.completedAt && (
-                              <PauseIcon size={14} weight="fill" className="text-orange-600" />
-                            )}
-                            {activeSession?.id === session.id && !session.completedAt && (
-                              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-                            )}
+                          <div className="text-xs text-gray-500">
+                            {new Date(session.createdAt).toLocaleString()}
                           </div>
                         </div>
+                        <div className="flex items-center gap-1">
+                          {session.completedAt && !session.rewardsClaimedAt && (
+                            <span className="text-xs text-yellow-600">Unclaimed</span>
+                          )}
+                          {session.rewardsClaimedAt && (
+                            <PackageIcon size={14} weight="fill" className="text-yellow-600" />
+                          )}
+                          {session.completedAt && (
+                            <CheckIcon size={14} weight="bold" className="text-green-600" />
+                          )}
+                          {session.paused && !session.completedAt && (
+                            <PauseIcon size={14} weight="fill" className="text-orange-600" />
+                          )}
+                          {activeSession?.id === session.id && !session.completedAt && (
+                            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                          )}
+                        </div>
                       </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </>
-          ) : (
-            /* Blocks Inventory Tab */
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )} */}
+
+          {/* Packs Tab */}
+          {activeTab === 'packs' && (
+            <div className="flex-1  mt-2">
+              
+              {isLoading ? (
+                <div className="text-sm text-gray-500">Loading packs...</div>
+              ) : (
+                <>
+                  {sessions.filter(s => s.completedAt && !s.rewardsClaimedAt).length === 0 ? (
+                    <div className="text-sm text-gray-500 text-center py-8">
+                      <PackageIcon size={24} className="mx-auto mb-2 text-gray-400" />
+                      <p>No packs to open!</p>
+                      <p className="text-xs mt-1">Complete timers to earn packs</p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-2">
+                      {sessions
+                        .filter(s => s.completedAt && !s.rewardsClaimedAt)
+                        .sort((a, b) => b.createdAt - a.createdAt)
+                        .map((session) => {
+                          const minutes = Math.floor(session.timeInSeconds / 60);
+                          const packSize = minutes >= 60 ? 6 : 3;
+                          
+                          return (
+                            <button
+                              key={session.id}
+                              onClick={() => claimReward(session)}
+                              disabled={claimingReward}
+                              className="relative bg-gradient-to-br from-amber-100 to-yellow-50 rounded-md overflow-hidden border-2 border-amber-300 transition-all transform hover:scale-110 hover:shadow-lg group hover:rotate-2"
+                              style={{ aspectRatio: '3/4' }}
+                            >
+                              {/* Top tear strip */}
+                              <div className="absolute top-0 left-0 right-0 h-3 bg-amber-400 border-b border-amber-500" 
+                                   style={{ 
+                                     backgroundImage: 'repeating-linear-gradient(45deg, transparent, transparent 3px, rgba(0,0,0,0.1) 3px, rgba(0,0,0,0.1) 6px)',
+                                   }}>
+                                <div className="absolute top-0.5 left-2 text-[6px] font-mono text-amber-800">TEAR HERE</div>
+                              </div>
+                              
+                              {/* Main content */}
+                              <div className="p-3 pt-5 h-full flex flex-col justify-between">
+                                {/* Header */}
+                                <div>
+                                  <div className="text-center mb-2">
+                                    <h3 className="text-[10px] font-mono text-amber-900 font-bold">GARDEN GROVE CO.</h3>
+                                    <p className="text-[8px] text-amber-700">Premium Seeds Since 2024</p>
+                                  </div>
+                                  
+                                  {/* Product name */}
+                                  <div className="bg-green-700 text-white py-1 px-2 rounded-sm mb-2">
+                                    <p className="text-xs font-bold text-center">MYSTERY PACK</p>
+                                    <p className="text-[10px] text-center opacity-90">{packSize} Premium Seeds</p>
+                                  </div>
+                                  
+                                  {/* Decorative plant illustration */}
+                                  <div className="flex justify-center mb-2">
+                                    <FlowerLotusIcon size={24} className="text-green-600" />
+                                  </div>
+                                </div>
+                                
+                                {/* Bottom section */}
+                                <div>
+                                  {/* Growing instructions */}
+                                  <div className="text-[7px] text-amber-800 mb-2 leading-tight">
+                                    <p className="font-bold">PLANTING INSTRUCTIONS:</p>
+                                    <p>1. Place in garden grid</p>
+                                    <p>2. Water regularly with focus</p>
+                                    <p>3. Watch them grow!</p>
+                                  </div>
+                                  
+                                  {/* Barcode */}
+                                  <div className="bg-white p-1 rounded-sm border border-gray-300">
+                                    <div className="flex items-end justify-center gap-0.5">
+                                      {/* Static barcode pattern */}
+                                      <div className="bg-black" style={{ width: '2px', height: '16px' }} />
+                                      <div className="bg-black" style={{ width: '1px', height: '16px' }} />
+                                      <div className="bg-black" style={{ width: '1px', height: '16px' }} />
+                                      <div className="bg-black" style={{ width: '2px', height: '16px' }} />
+                                      <div className="bg-black" style={{ width: '1px', height: '16px' }} />
+                                      <div className="bg-black" style={{ width: '2px', height: '16px' }} />
+                                      <div className="bg-black" style={{ width: '2px', height: '16px' }} />
+                                      <div className="bg-black" style={{ width: '1px', height: '16px' }} />
+                                      <div className="bg-black" style={{ width: '1px', height: '16px' }} />
+                                      <div className="bg-black" style={{ width: '1px', height: '16px' }} />
+                                      <div className="bg-black" style={{ width: '2px', height: '16px' }} />
+                                      <div className="bg-black" style={{ width: '1px', height: '16px' }} />
+                                      <div className="bg-black" style={{ width: '2px', height: '16px' }} />
+                                      <div className="bg-black" style={{ width: '1px', height: '16px' }} />
+                                      <div className="bg-black" style={{ width: '1px', height: '16px' }} />
+                                      <div className="bg-black" style={{ width: '2px', height: '16px' }} />
+                                      <div className="bg-black" style={{ width: '1px', height: '16px' }} />
+                                      <div className="bg-black" style={{ width: '2px', height: '16px' }} />
+                                      <div className="bg-black" style={{ width: '1px', height: '16px' }} />
+                                      <div className="bg-black" style={{ width: '2px', height: '16px' }} />
+                                    </div>
+                                    <p className="text-[6px] text-center mt-0.5 font-mono">
+                                      {session.id.substring(0, 12).toUpperCase()}
+                                    </p>
+                                  </div>
+                                  
+                                  {/* Bottom details */}
+                                  <div className="flex justify-between items-center mt-1">
+                                    <p className="text-[6px] text-amber-700">LOT #2847</p>
+                                    <p className="text-[6px] text-amber-700">NET WT. {packSize * 0.5}g</p>
+                                  </div>
+                                </div>
+                              </div>
+                              
+                              {/* Hover shine effect */}
+                              <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white to-transparent opacity-0 group-hover:opacity-20 transition-opacity pointer-events-none" />
+                            </button>
+                          );
+                        })}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+
+          {activeTab === 'blocks' && (
             <div className="flex-1 overflow-y-auto">
-              <h2 className="text-sm font-semibold text-gray-700 mb-2">Your Seeds</h2>
+              
               {Object.keys(blockInventory).length === 0 ? (
                 <div className="text-sm text-gray-500 text-center py-8">
-                  <FlowerLotusIcon size={24} className="mx-auto mb-2 text-gray-400" />
-                  <p>No seeds yet!</p>
-                  <p className="text-xs mt-1">Complete timers to earn seed packs</p>
+                  {/* <FlowerLotusIcon size={24} className="mx-auto mb-2 text-gray-400" /> */}
+                  <p className="text-xs font-mono uppercase font-medium">No seeds yet</p>
+                  <p className="text-xs mt-1 max-w-xs mx-auto">Complete some pomodoro sessions to earn seeds.</p>
                 </div>
               ) : (
                 <div className="grid grid-cols-2 gap-3">
@@ -461,7 +770,7 @@ export default function MainSlideover({ isOpen, onClose, selectedBlockType, onSe
                         onClick={() => {
                           if (onSelectBlockType) {
                             onSelectBlockType(type);
-                            onClose?.();
+                            // Don't close the slideover when selecting a block
                           }
                         }}
                       >
@@ -471,14 +780,14 @@ export default function MainSlideover({ isOpen, onClose, selectedBlockType, onSe
                             alt={blockType.name}
                             className="w-16 h-16 mx-auto mb-2 pixelated"
                           />
-                          <span className="absolute top-0 right-0 bg-green-600 text-white text-xs px-1.5 py-0.5 rounded-full">
+                          <span className="absolute top-0 right-0 bg-green-600 text-white text-xs px-1.5 py-0.5 rounded">
                             {count}
                           </span>
                         </div>
                         <div className="text-xs font-medium text-gray-700">
                           {blockType.name}
                         </div>
-                        <div className="text-xs text-gray-500 mt-1">
+                        <div className="text-[10px] text-gray-500 mt-1 font-mono uppercase font-medium">
                           Click to place
                         </div>
                       </div>
@@ -488,8 +797,101 @@ export default function MainSlideover({ isOpen, onClose, selectedBlockType, onSe
               )}
             </div>
           )}
+
+          {/* Help Tab */}
+          {activeTab === 'help' && (
+            <div className="flex-1 overflow-y-auto">
+              <div className="space-y-4">
+                <div className="space-y-3">
+                  <div className="bg-gray-50 rounded-lg p-3">
+                    <div className="flex items-start gap-2">
+                      <span className="text-xs font-mono font-bold text-gray-400">01</span>
+                      <div className="flex-1">
+                        <h4 className="text-xs font-mono uppercase font-medium text-gray-800 mb-1">SET TIMER</h4>
+                        <p className="text-xs text-gray-600 leading-relaxed">
+                          Choose a duration between 5-60 minutes for your focus session. Stay focused to complete the session.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-gray-50 rounded-lg p-3">
+                    <div className="flex items-start gap-2">
+                      <span className="text-xs font-mono font-bold text-gray-400">02</span>
+                      <div className="flex-1">
+                        <h4 className="text-xs font-mono uppercase font-medium text-gray-800 mb-1">EARN PACKS</h4>
+                        <p className="text-xs text-gray-600 leading-relaxed">
+                          Complete sessions to earn seed packs. Sessions under 60 minutes give 3 seeds, 60+ minutes give 6 seeds.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-gray-50 rounded-lg p-3">
+                    <div className="flex items-start gap-2">
+                      <span className="text-xs font-mono font-bold text-gray-400">03</span>
+                      <div className="flex-1">
+                        <h4 className="text-xs font-mono uppercase font-medium text-gray-800 mb-1">OPEN PACKS</h4>
+                        <p className="text-xs text-gray-600 leading-relaxed">
+                          Click on earned packs to reveal random seeds. Each pack guarantees at least one plant.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-gray-50 rounded-lg p-3">
+                    <div className="flex items-start gap-2">
+                      <span className="text-xs font-mono font-bold text-gray-400">04</span>
+                      <div className="flex-1">
+                        <h4 className="text-xs font-mono uppercase font-medium text-gray-800 mb-1">PLANT SEEDS</h4>
+                        <p className="text-xs text-gray-600 leading-relaxed">
+                          Select a seed from your inventory, then click on the garden grid to plant it.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="border-t pt-3 border-gray-200">
+                  <div className="bg-gray-50 rounded-lg p-3">
+                    <h4 className="text-xs font-mono uppercase font-medium text-gray-800 mb-2">SEED RARITY</h4>
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-gray-600">Common</span>
+                        <span className=" text-gray-500 font-medium font-barlow">60%</span>
+                      </div>
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-gray-600">Uncommon</span>
+                        <span className=" text-gray-500 font-medium font-barlow">30%</span>
+                      </div>
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-gray-600">Rare</span>
+                        <span className=" text-gray-500 font-medium font-barlow">8%</span>
+                      </div>
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-gray-600">Legendary</span>
+                        <span className=" text-gray-500 font-medium font-barlow">2%</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       </motion.div>
+      
+      {/* Controls hint - bottom right */}
+      <div className="fixed bottom-2 right-2 rounded-lg p-2 text-right">
+        <div className="space-y-0.5 text-[10px] text-gray-600">
+          <div>Scroll to zoom</div>
+          <div>Alt + drag to pan</div> 
+          <div>Ctrl + click to move items</div>
+        </div>
+      </div>
       
       {/* Pack Opening Modal */}
       <PackOpeningModal

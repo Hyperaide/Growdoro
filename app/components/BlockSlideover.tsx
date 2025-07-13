@@ -19,12 +19,10 @@ interface BlockSlideoverProps {
   block: Block | null;
   isOpen: boolean;
   onClose: () => void;
-  onDelete: (blockId: string) => void;
   onUpdateBlock: (blockId: string, updates: Partial<Block>) => void;
-  onDuplicateBlock: (block: Block) => void;
 }
 
-export default function BlockSlideover({ block, isOpen, onClose, onDelete, onUpdateBlock, onDuplicateBlock }: BlockSlideoverProps) {
+export default function BlockSlideover({ block, isOpen, onClose, onUpdateBlock }: BlockSlideoverProps) {
   const slideoverRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -34,24 +32,44 @@ export default function BlockSlideover({ block, isOpen, onClose, onDelete, onUpd
     }
   }, [isOpen]);
 
+  // Handle click outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (slideoverRef.current && !slideoverRef.current.contains(event.target as Node)) {
+        onClose();
+      }
+    };
+
+    if (isOpen) {
+      // Add a small delay to prevent immediate closure from the opening click
+      const timer = setTimeout(() => {
+        document.addEventListener('mousedown', handleClickOutside);
+      }, 100);
+
+      return () => {
+        clearTimeout(timer);
+        document.removeEventListener('mousedown', handleClickOutside);
+      };
+    }
+  }, [isOpen, onClose]);
+
   if (!isOpen || !block) return null;
 
   const blockType = BLOCK_TYPES[block.type];
 
   return (
-         // <FloatingOverlay className="z-50">      
-       <motion.div
-        initial={{ x: '100%' }}
-        animate={{ x: isOpen ? 0 : '100%' }}
-        transition={{ duration: 0.2, ease: 'easeInOut' }}
-         ref={slideoverRef}
-         className={`fixed right-2 bottom-2 top-2 w-80 h-max max-h-dvh overflow-y-auto bg-white rounded-xl strong-shadow z-50 p-2 ${
-           isOpen ? 'translate-x-0' : 'translate-x-full'
-         }`}
-         onClick={(e) => e.stopPropagation()}
-         tabIndex={-1}
-       >
-        <div className="h-full flex flex-col gap-4">
+    <motion.div
+      initial={{ x: '100%' }}
+      animate={{ x: isOpen ? 0 : '100%' }}
+      transition={{ duration: 0.2, ease: 'easeInOut' }}
+      ref={slideoverRef}
+      className={`fixed right-2 bottom-2 top-2 w-80 h-max max-h-dvh overflow-y-auto bg-white rounded-xl strong-shadow z-50 p-2 ${
+        isOpen ? 'translate-x-0' : 'translate-x-full'
+      }`}
+      onClick={(e) => e.stopPropagation()}
+      tabIndex={-1}
+    >
+      <div className="h-full flex flex-col gap-4">
           {/* <h2 className="font-gowun-batang text-xl font-bold text-gray-900">{blockType.name}</h2>
           {blockType.latinName && <p className="font-gowun-batang text-[13px] text-gray-500">{blockType.latinName}</p>} */}
 
@@ -112,6 +130,5 @@ export default function BlockSlideover({ block, isOpen, onClose, onDelete, onUpd
 
       
       </motion.div>
-    // </FloatingOverlay>
   );
 } 
