@@ -1,13 +1,21 @@
 'use client';
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { BLOCK_TYPES, TILE_CONFIG, BlockTypeId } from '../constants/blocks';
+import BlockSlideover from './BlockSlideover';
+import MainSlideover from './MainSlideover';
+import { HourglassIcon } from '@phosphor-icons/react';
+import { db } from '../../lib/db';
+import { id } from '@instantdb/react';
+import { XIcon } from '@phosphor-icons/react';
 
 interface Block {
   id: string;
   x: number;
   y: number;
   z: number;
-  type: 'grass' | 'dirt' | 'stone' | 'flower' | 'tree' | 'bush' | 'morning-glory';
+  type: BlockTypeId;
+  placedAt?: number; // Timestamp when block was placed for animation
 }
 
 interface Camera {
@@ -16,81 +24,85 @@ interface Camera {
   zoom: number;
 }
 
-// Block image configuration - add paths for any blocks you want to use images for
-const BLOCK_IMAGES = {
-  'morning-glory': '/plants/morning-glory.png',
-  'dirt': '/blocks/dirt.png',
-  // Add more block images here as needed:
-  // 'grass': '/blocks/grass.png',
-  // 'stone': '/blocks/stone.png',
-  // 'flower': '/plants/flower.png',
-  // 'tree': '/plants/tree.png',
-  // 'bush': '/plants/bush.png',
-};
-
 const IsometricGarden: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [blocks, setBlocks] = useState<Block[]>([
-    { id: '1', x: 0, y: 0, z: 0, type: 'grass' },
-    { id: '2', x: 1, y: 0, z: 0, type: 'grass' },
-    { id: '3', x: 0, y: 1, z: 0, type: 'grass' },
-    { id: '4', x: 1, y: 1, z: 0, type: 'grass' },
-  ]);
+  const [blocks, setBlocks] = useState<Block[]>([]);
   const [camera, setCamera] = useState<Camera>({ x: 0, y: 0, zoom: 1 });
-  const [selectedBlockType, setSelectedBlockType] = useState<Block['type']>('grass');
+  const [selectedBlockType, setSelectedBlockType] = useState<BlockTypeId>('dirt');
   const [isPanning, setIsPanning] = useState(false);
   const [panStart, setPanStart] = useState({ x: 0, y: 0 });
   const [hoveredBlock, setHoveredBlock] = useState<string | null>(null);
   const [hoveredTile, setHoveredTile] = useState<{ x: number; y: number } | null>(null);
   const [loadedImages, setLoadedImages] = useState<Record<string, HTMLImageElement>>({});
+  const [isDragging, setIsDragging] = useState(false);
+  const [draggedBlock, setDraggedBlock] = useState<Block | null>(null);
+  const [selectedBlock, setSelectedBlock] = useState<Block | null>(null);
+  const [isSlideoverOpen, setIsSlideoverOpen] = useState(false);
+  const [isMainSlideoverOpen, setIsMainSlideoverOpen] = useState(false);
+  const [selectedInventoryBlock, setSelectedInventoryBlock] = useState<string | null>(null);
+  const [browserSessionId, setBrowserSessionId] = useState<string>('');
+
+  // Get browser session ID on mount
+  useEffect(() => {
+    const STORAGE_KEY = 'gardenspace_session_id';
+    let sessionId = localStorage.getItem(STORAGE_KEY);
+    
+    if (!sessionId) {
+      sessionId = id();
+      localStorage.setItem(STORAGE_KEY, sessionId);
+    }
+    
+    setBrowserSessionId(sessionId);
+  }, []);
 
   // Preload block images
   useEffect(() => {
     const images: Record<string, HTMLImageElement> = {};
     let loadedCount = 0;
-    const totalImages = Object.keys(BLOCK_IMAGES).length;
+    const blockEntries = Object.entries(BLOCK_TYPES);
+    const totalImages = blockEntries.length;
 
     if (totalImages === 0) {
       setLoadedImages({});
       return;
     }
 
-    Object.entries(BLOCK_IMAGES).forEach(([blockType, src]) => {
+    blockEntries.forEach(([blockId, blockType]) => {
       const img = new Image();
       img.onload = () => {
-        images[blockType] = img;
+        images[blockId] = img;
         loadedCount++;
         if (loadedCount === totalImages) {
           setLoadedImages(images);
         }
       };
       img.onerror = () => {
-        console.warn(`Failed to load image for ${blockType} from ${src}`);
+        console.warn(`Failed to load image for ${blockType.name} from ${blockType.imagePath}`);
         loadedCount++;
         if (loadedCount === totalImages) {
           setLoadedImages(images);
         }
       };
-      img.src = src;
+      img.src = blockType.imagePath;
     });
   }, []);
 
   // Convert world coordinates to screen coordinates
   const worldToScreen = useCallback((x: number, y: number, z: number) => {
-    const tileWidth = 64 * camera.zoom;
-    const tileHeight = 32 * camera.zoom;
+    const tileWidth = TILE_CONFIG.width * camera.zoom;
+    const tileHeight = TILE_CONFIG.height * camera.zoom;
     
     // This gives us the TOP point of the isometric tile
     const screenX = (x - y) * (tileWidth / 2) + camera.x + window.innerWidth / 2;
-    const screenY = (x + y) * (tileHeight / 2) - z * (tileHeight) + camera.y + window.innerHeight / 2;
+    const screenY = (x + y) * (tileHeight / 2) - z * (TILE_CONFIG.depth * camera.zoom) + camera.y + window.innerHeight / 2;
     
     return { x: screenX, y: screenY };
   }, [camera]);
 
   // Convert screen coordinates to world coordinates (fixed for better accuracy)
   const screenToWorld = useCallback((screenX: number, screenY: number) => {
-    const tileWidth = 64 * camera.zoom;
-    const tileHeight = 32 * camera.zoom;
+    const tileWidth = TILE_CONFIG.width * camera.zoom;
+    const tileHeight = TILE_CONFIG.height * camera.zoom;
     
     // Adjust for camera and center
     const adjustedX = screenX - camera.x - window.innerWidth / 2;
@@ -109,8 +121,8 @@ const IsometricGarden: React.FC = () => {
     if (!hoveredTile || isPanning) return;
     
     const { x: screenX, y: screenY } = worldToScreen(hoveredTile.x, hoveredTile.y, 0);
-    const size = 64 * camera.zoom;
-    const height = 32 * camera.zoom;
+    const size = TILE_CONFIG.width * camera.zoom;
+    const height = TILE_CONFIG.height * camera.zoom;
     
     ctx.save();
     ctx.strokeStyle = '#ffffff';
@@ -136,31 +148,79 @@ const IsometricGarden: React.FC = () => {
   // Draw a single block
   const drawBlock = useCallback((ctx: CanvasRenderingContext2D, block: Block) => {
     const { x: screenX, y: screenY } = worldToScreen(block.x, block.y, block.z);
-    const size = 76 * camera.zoom;
-    const height = 36 * camera.zoom;
+    const size = TILE_CONFIG.width * camera.zoom;
+    const height = TILE_CONFIG.height * camera.zoom;
     
     const isHovered = hoveredBlock === block.id;
     
-    // Check if this block has an image
-    if (loadedImages[block.type]) {
+    // Calculate animation progress if block was recently placed
+    let animationScale = 1;
+    let animationOffset = 0;
+    if (block.placedAt) {
+      const animationDuration = 300; // milliseconds
+      const elapsed = Date.now() - block.placedAt;
+      const progress = Math.min(elapsed / animationDuration, 1);
+      
+      // Smooth easing function for a subtle bounce
+      const easeOutBack = (t: number) => {
+        const c1 = 1.70158;
+        const c3 = c1 + 1;
+        return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2);
+      };
+      
+      animationScale = 0.85 + 0.15 * easeOutBack(progress);
+      animationOffset = (1 - easeOutBack(progress)) * 15; // Start 15 pixels higher
+    }
+    
+    // All blocks must have images now
+    const img = loadedImages[block.type];
+    if (img) {
       // Draw the block image in isometric style
       ctx.save();
+      
+      // Apply animation transform
+      ctx.translate(screenX, screenY - animationOffset);
+      ctx.scale(animationScale, animationScale);
+      ctx.translate(-screenX, -screenY + animationOffset);
+      
+      // Enable image smoothing for better quality
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
       
       if (isHovered) {
         ctx.globalAlpha = 0.8;
       }
       
-      const img = loadedImages[block.type];
-      const imgWidth = size;
-      const imgHeight = size;
+      // Calculate the target area for the isometric cell
+      const targetWidth = size;
+      const targetHeight = height + TILE_CONFIG.depth * camera.zoom;
       
-      // Image should sit on the tile - its bottom should be at screenY + height
+      // Calculate scaled dimensions maintaining aspect ratio
+      const imgAspectRatio = img.width / img.height;
+      const targetAspectRatio = targetWidth / targetHeight;
+      
+      let drawWidth, drawHeight;
+      
+      if (imgAspectRatio > targetAspectRatio) {
+        // Image is wider than target - fit to width
+        drawWidth = targetWidth * TILE_CONFIG.imageScale;
+        drawHeight = (targetWidth * TILE_CONFIG.imageScale) / imgAspectRatio;
+      } else {
+        // Image is taller than target - fit to height
+        drawHeight = targetHeight * TILE_CONFIG.imageScale;
+        drawWidth = (targetHeight * TILE_CONFIG.imageScale) * imgAspectRatio;
+      }
+      
+      // Center the image in the isometric cell
+      const drawX = screenX - drawWidth / 2;
+      const drawY = screenY + (targetHeight - drawHeight) / 2;
+      
       ctx.drawImage(
         img,
-        screenX - imgWidth / 2,
-        screenY + height - imgHeight,
-        imgWidth,
-        imgHeight
+        drawX,
+        drawY,
+        drawWidth,
+        drawHeight
       );
       
       // Draw outline if hovered
@@ -170,7 +230,8 @@ const IsometricGarden: React.FC = () => {
         ctx.lineWidth = 2;
         ctx.setLineDash([]);
         
-        // Draw isometric outline at the tile position
+        // Draw full block outline including depth
+        // Top diamond
         ctx.beginPath();
         ctx.moveTo(screenX, screenY);
         ctx.lineTo(screenX + size / 2, screenY + height / 2);
@@ -178,110 +239,15 @@ const IsometricGarden: React.FC = () => {
         ctx.lineTo(screenX - size / 2, screenY + height / 2);
         ctx.closePath();
         ctx.stroke();
-      }
-      
-      ctx.restore();
-    } else {
-      // Draw regular blocks without images
-      
-      // Block colors
-      const colors: Record<string, { top: string; side1: string; side2: string }> = {
-        grass: { top: '#7ec850', side1: '#5ea838', side2: '#4e8830' },
-        dirt: { top: '#b8886f', side1: '#966e58', side2: '#7a5a48' },
-        stone: { top: '#a0a0a0', side1: '#808080', side2: '#606060' },
-        flower: { top: '#ff6b9d', side1: '#e85a8c', side2: '#d1497b' },
-        tree: { top: '#228b22', side1: '#1a6b1a', side2: '#125012' },
-        bush: { top: '#3cb371', side1: '#2ca25f', side2: '#1c914e' },
-        'morning-glory': { top: '#7b9ff2', side1: '#6a8ee1', side2: '#597dd0' }
-      };
-      
-      const color = colors[block.type] || colors.grass;
-      
-      // Draw block faces
-      ctx.save();
-      
-      if (isHovered) {
-        ctx.globalAlpha = 0.8;
-      }
-      
-      // Top face of the block
-      ctx.fillStyle = color.top;
-      ctx.beginPath();
-      ctx.moveTo(screenX, screenY);
-      ctx.lineTo(screenX + size / 2, screenY + height / 2);
-      ctx.lineTo(screenX, screenY + height);
-      ctx.lineTo(screenX - size / 2, screenY + height / 2);
-      ctx.closePath();
-      ctx.fill();
-      
-      // Right face
-      ctx.fillStyle = color.side1;
-      ctx.beginPath();
-      ctx.moveTo(screenX, screenY + height);
-      ctx.lineTo(screenX + size / 2, screenY + height / 2);
-      ctx.lineTo(screenX + size / 2, screenY + height / 2 + height);
-      ctx.lineTo(screenX, screenY + height + height);
-      ctx.closePath();
-      ctx.fill();
-      
-      // Left face
-      ctx.fillStyle = color.side2;
-      ctx.beginPath();
-      ctx.moveTo(screenX, screenY + height);
-      ctx.lineTo(screenX - size / 2, screenY + height / 2);
-      ctx.lineTo(screenX - size / 2, screenY + height / 2 + height);
-      ctx.lineTo(screenX, screenY + height + height);
-      ctx.closePath();
-      ctx.fill();
-      
-      // Draw simple plant decorations on top for plant blocks
-      if (['flower', 'tree', 'bush'].includes(block.type)) {
-        ctx.save();
-        const plantSize = size * 0.4;
         
-        switch (block.type) {
-          case 'flower':
-            // Draw simple flower
-            ctx.fillStyle = '#ffffff';
-            ctx.beginPath();
-            ctx.arc(screenX, screenY + height / 2, plantSize * 0.3, 0, Math.PI * 2);
-            ctx.fill();
-            break;
-            
-          case 'tree':
-            // Draw simple tree shape
-            ctx.fillStyle = '#0f5f0f';
-            ctx.beginPath();
-            ctx.moveTo(screenX, screenY);
-            ctx.lineTo(screenX + plantSize / 2, screenY + height / 2);
-            ctx.lineTo(screenX - plantSize / 2, screenY + height / 2);
-            ctx.closePath();
-            ctx.fill();
-            break;
-            
-          case 'bush':
-            // Draw simple circles for bush
-            ctx.fillStyle = '#2a8a4a';
-            ctx.beginPath();
-            ctx.arc(screenX - plantSize * 0.2, screenY + height / 2, plantSize * 0.2, 0, Math.PI * 2);
-            ctx.arc(screenX + plantSize * 0.2, screenY + height / 2, plantSize * 0.2, 0, Math.PI * 2);
-            ctx.fill();
-            break;
-        }
-        
-        ctx.restore();
-      }
-      
-      // Draw outline if hovered
-      if (isHovered) {
-        ctx.strokeStyle = '#ffffff';
-        ctx.lineWidth = 2;
+        // Vertical edges
         ctx.beginPath();
-        ctx.moveTo(screenX, screenY);
-        ctx.lineTo(screenX + size / 2, screenY + height / 2);
-        ctx.lineTo(screenX, screenY + height);
-        ctx.lineTo(screenX - size / 2, screenY + height / 2);
-        ctx.closePath();
+        ctx.moveTo(screenX + size / 2, screenY + height / 2);
+        ctx.lineTo(screenX + size / 2, screenY + height / 2 + TILE_CONFIG.depth * camera.zoom);
+        ctx.moveTo(screenX, screenY + height);
+        ctx.lineTo(screenX, screenY + height + TILE_CONFIG.depth * camera.zoom);
+        ctx.moveTo(screenX - size / 2, screenY + height / 2);
+        ctx.lineTo(screenX - size / 2, screenY + height / 2 + TILE_CONFIG.depth * camera.zoom);
         ctx.stroke();
       }
       
@@ -301,19 +267,19 @@ const IsometricGarden: React.FC = () => {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     
     // Draw grid lines for reference (subtle)
-    ctx.strokeStyle = 'rgba(0, 0, 0, 0.05)';
+    ctx.strokeStyle = 'rgba(147, 196, 188, 0.2)'; // Change this! Format: rgba(red, green, blue, opacity)
     ctx.lineWidth = 1;
     
     // Calculate visible grid range
-    const visibleRange = Math.ceil((Math.max(window.innerWidth, window.innerHeight) / (64 * camera.zoom)) / 2) + 5;
-    const centerX = -Math.floor(camera.x / (64 * camera.zoom));
-    const centerY = -Math.floor(camera.y / (32 * camera.zoom));
+    const visibleRange = Math.ceil((Math.max(window.innerWidth, window.innerHeight) / (TILE_CONFIG.width * camera.zoom)) / 2) + 5;
+    const centerX = -Math.floor(camera.x / (TILE_CONFIG.width * camera.zoom));
+    const centerY = -Math.floor(camera.y / (TILE_CONFIG.height * camera.zoom));
     
     for (let x = centerX - visibleRange; x <= centerX + visibleRange; x++) {
       for (let y = centerY - visibleRange; y <= centerY + visibleRange; y++) {
         const { x: screenX, y: screenY } = worldToScreen(x, y, 0);
-        const size = 64 * camera.zoom;
-        const height = 32 * camera.zoom;
+        const size = TILE_CONFIG.width * camera.zoom;
+        const height = TILE_CONFIG.height * camera.zoom;
         
         ctx.beginPath();
         ctx.moveTo(screenX, screenY);
@@ -337,16 +303,24 @@ const IsometricGarden: React.FC = () => {
     // Draw hover indicator
     drawHoveredTileIndicator(ctx);
     
-    // Draw coordinates in corner
-    if (hoveredTile && !isPanning) {
+    // Draw dragged block preview
+    if (isDragging && draggedBlock && hoveredTile) {
       ctx.save();
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-      ctx.fillRect(window.innerWidth - 120, 10, 110, 30);
-      ctx.fillStyle = '#ffffff';
-      ctx.font = '14px monospace';
-      ctx.fillText(`X: ${hoveredTile.x}, Y: ${hoveredTile.y}`, window.innerWidth - 110, 30);
+      ctx.globalAlpha = 0.6;
+      
+      // Draw the dragged block at the hovered position
+      const previewBlock = {
+        ...draggedBlock,
+        x: hoveredTile.x,
+        y: hoveredTile.y,
+        placedAt: undefined // No animation for preview
+      };
+      drawBlock(ctx, previewBlock);
+      
       ctx.restore();
     }
+    
+    // Coordinates display removed
   }, [blocks, camera, drawBlock, worldToScreen, drawHoveredTileIndicator, hoveredTile, isPanning]);
 
   // Handle canvas resize
@@ -355,8 +329,23 @@ const IsometricGarden: React.FC = () => {
       const canvas = canvasRef.current;
       if (!canvas) return;
       
-      canvas.width = window.innerWidth;
-      canvas.height = window.innerHeight;
+      // Get device pixel ratio for sharp rendering on high-DPI displays
+      const dpr = window.devicePixelRatio || 1;
+      
+      // Set canvas size accounting for device pixel ratio
+      canvas.width = window.innerWidth * dpr;
+      canvas.height = window.innerHeight * dpr;
+      
+      // Scale canvas back down using CSS
+      canvas.style.width = window.innerWidth + 'px';
+      canvas.style.height = window.innerHeight + 'px';
+      
+      // Scale the drawing context to match device pixel ratio
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.scale(dpr, dpr);
+      }
+      
       render();
     };
     
@@ -366,9 +355,21 @@ const IsometricGarden: React.FC = () => {
     return () => window.removeEventListener('resize', handleResize);
   }, [render]);
 
-  // Render loop
+  // Continuous render loop for smooth animations
   useEffect(() => {
-    render();
+    let animationId: number;
+    
+    const animate = () => {
+      render();
+      animationId = requestAnimationFrame(animate);
+    };
+    
+    // Start the animation loop
+    animationId = requestAnimationFrame(animate);
+    
+    return () => {
+      cancelAnimationFrame(animationId);
+    };
   }, [render]);
 
   // Handle mouse events
@@ -378,21 +379,101 @@ const IsometricGarden: React.FC = () => {
       setIsPanning(true);
       setPanStart({ x: e.clientX - camera.x, y: e.clientY - camera.y });
     } else if (e.button === 0) {
-      // Left click for placing blocks
       const { x, y } = screenToWorld(e.clientX, e.clientY);
       
-      // Check if block already exists at this position
+      // Check if clicking on an existing block
       const existingBlock = blocks.find(b => b.x === x && b.y === y && b.z === 0);
-      if (!existingBlock) {
-        const newBlock: Block = {
-          id: Date.now().toString(),
-          x,
-          y,
-          z: 0,
-          type: selectedBlockType
-        };
-        setBlocks([...blocks, newBlock]);
+      
+      if (existingBlock && e.ctrlKey) {
+        // Ctrl+click to start dragging a block
+        setIsDragging(true);
+        setDraggedBlock(existingBlock);
+        // Remove the block from its current position
+        setBlocks(blocks.filter(b => b.id !== existingBlock.id));
+      } else if (existingBlock && !e.ctrlKey) {
+        // Regular click on a block opens the slideover
+        setSelectedBlock(existingBlock);
+        setIsSlideoverOpen(true);
+      } else if (!existingBlock && !isDragging) {
+        // Place a block from inventory if selected
+        if (selectedInventoryBlock) {
+          handlePlaceBlockFromInventory(x, y);
+        } else {
+          // Regular click to place a new block
+          const newBlock: Block = {
+            id: Date.now().toString(),
+            x,
+            y,
+            z: 0,
+            type: selectedBlockType,
+            placedAt: Date.now()
+          };
+          setBlocks([...blocks, newBlock]);
+        }
       }
+    }
+  };
+
+  const handlePlaceBlockFromInventory = async (x: number, y: number) => {
+    if (!selectedInventoryBlock || !browserSessionId) return;
+
+    // Query for an unplaced block of this type
+    const { data } = await db.queryOnce({
+      blocks: {
+        $: {
+          where: {
+            sessionId: browserSessionId,
+            type: selectedInventoryBlock,
+            x: { $isNull: true }
+          },
+          limit: 1
+        }
+      }
+    });
+
+    const unplacedBlock = data?.blocks?.[0];
+    if (!unplacedBlock) {
+      // No more blocks of this type
+      setSelectedInventoryBlock(null);
+      return;
+    }
+
+    // Update the block in the database with its position
+    await db.transact(
+      db.tx.blocks[unplacedBlock.id].update({
+        x,
+        y,
+        z: 0
+      })
+    );
+
+    // Add to local state
+    const newBlock: Block = {
+      id: unplacedBlock.id,
+      x,
+      y,
+      z: 0,
+      type: selectedInventoryBlock as BlockTypeId,
+      placedAt: Date.now()
+    };
+    setBlocks([...blocks, newBlock]);
+    
+    // Clear selection if no more blocks of this type
+    const { data: checkData } = await db.queryOnce({
+      blocks: {
+        $: {
+          where: {
+            sessionId: browserSessionId,
+            type: selectedInventoryBlock,
+            x: { $isNull: true }
+          },
+          limit: 1
+        }
+      }
+    });
+    
+    if (!checkData?.blocks?.length) {
+      setSelectedInventoryBlock(null);
     }
   };
 
@@ -414,8 +495,33 @@ const IsometricGarden: React.FC = () => {
     }
   };
 
-  const handleMouseUp = () => {
+  const handleMouseUp = (e: React.MouseEvent) => {
     setIsPanning(false);
+    
+    // If dragging a block, place it at the current position
+    if (isDragging && draggedBlock) {
+      const { x, y } = screenToWorld(e.clientX, e.clientY);
+      
+      // Check if position is already occupied
+      const existingBlock = blocks.find(b => b.x === x && b.y === y && b.z === 0);
+      
+      if (!existingBlock) {
+        // Place the dragged block at the new position
+        const movedBlock: Block = {
+          ...draggedBlock,
+          x,
+          y,
+          placedAt: Date.now() // Trigger animation for moved block
+        };
+        setBlocks([...blocks, movedBlock]);
+      } else {
+        // Position occupied, return block to original position
+        setBlocks([...blocks, draggedBlock]);
+      }
+      
+      setIsDragging(false);
+      setDraggedBlock(null);
+    }
   };
 
   const handleMouseLeave = () => {
@@ -438,11 +544,59 @@ const IsometricGarden: React.FC = () => {
     setBlocks(blocks.filter(b => !(b.x === x && b.y === y && b.z === 0)));
   };
 
+  const handleDeleteBlock = (blockId: string) => {
+    setBlocks(blocks.filter(b => b.id !== blockId));
+  };
+
+  const handleUpdateBlock = (blockId: string, updates: Partial<Block>) => {
+    setBlocks(blocks.map(b => b.id === blockId ? { ...b, ...updates } : b));
+  };
+
+  const handleDuplicateBlock = (block: Block) => {
+    // Find an empty spot near the original block
+    let offsetX = 1;
+    let offsetY = 0;
+    let newX = block.x + offsetX;
+    let newY = block.y + offsetY;
+    
+    // Check for empty spot in a spiral pattern
+    while (blocks.some(b => b.x === newX && b.y === newY && b.z === 0)) {
+      if (offsetX === 1 && offsetY === 0) {
+        offsetX = 0; offsetY = 1;
+      } else if (offsetX === 0 && offsetY === 1) {
+        offsetX = -1; offsetY = 0;
+      } else if (offsetX === -1 && offsetY === 0) {
+        offsetX = 0; offsetY = -1;
+      } else if (offsetX === 0 && offsetY === -1) {
+        offsetX = 2; offsetY = 0;
+      } else {
+        // Continue spiral pattern
+        offsetX += 1;
+      }
+      newX = block.x + offsetX;
+      newY = block.y + offsetY;
+    }
+    
+    const duplicatedBlock: Block = {
+      ...block,
+      id: Date.now().toString(),
+      x: newX,
+      y: newY,
+      placedAt: Date.now()
+    };
+    
+    setBlocks([...blocks, duplicatedBlock]);
+  };
+
   return (
     <div className="relative w-full h-screen overflow-hidden">
       <canvas
         ref={canvasRef}
-        className="absolute inset-0 cursor-crosshair"
+        className={`absolute inset-0 ${
+          isDragging ? 'cursor-grabbing' : 
+          hoveredBlock ? 'cursor-grab' : 
+          'cursor-crosshair'
+        }`}
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
@@ -451,61 +605,79 @@ const IsometricGarden: React.FC = () => {
         onContextMenu={handleContextMenu}
       />
       
+      {/* Menu Button */}
+      <button
+        onClick={() => setIsMainSlideoverOpen(true)}
+        className="absolute top-4 left-4 bg-white rounded-lg shadow-lg p-3 hover:bg-gray-50 transition-colors"
+        aria-label="Open menu"
+      >
+        <HourglassIcon size={20} weight="fill" className="text-gray-800" />
+      </button>
+
+      {/* Selected Block Indicator */}
+      {selectedInventoryBlock && (
+        <div className="absolute top-4 left-20 bg-white rounded-lg shadow-lg p-3 flex items-center gap-2">
+          <img
+            src={BLOCK_TYPES[selectedInventoryBlock as BlockTypeId]?.imagePath}
+            alt="Selected block"
+            className="w-8 h-8 pixelated"
+          />
+          <div className="text-sm">
+            <div className="font-medium">Placing:</div>
+            <div className="text-xs text-gray-600">{BLOCK_TYPES[selectedInventoryBlock as BlockTypeId]?.name}</div>
+          </div>
+          <button
+            onClick={() => setSelectedInventoryBlock(null)}
+            className="ml-2 text-gray-400 hover:text-gray-600"
+          >
+            <XIcon size={16} weight="bold" />
+          </button>
+        </div>
+      )}
+
       {/* UI Controls */}
+      {/*
       <div className="absolute top-4 left-4 bg-white rounded-lg shadow-lg p-4 space-y-4">
         <div>
           <h3 className="font-bold text-lg mb-2">Garden Builder</h3>
           <p className="text-sm text-gray-600">
-            Left click: Place | Right click: Remove | Middle/Shift+drag: Pan | Scroll: Zoom
+            Left click: Place | Ctrl+click: Move | Right click: Remove | Shift+drag: Pan | Scroll: Zoom
           </p>
         </div>
         
         <div>
           <label className="block text-sm font-medium mb-2">Block Type:</label>
-          <div className="grid grid-cols-2 gap-2">
-            {/* Terrain blocks */}
-            <div className="col-span-2">
-              <p className="text-xs text-gray-500 mb-1">Terrain</p>
-              <div className="flex gap-2">
-                {(['grass', 'dirt', 'stone'] as const).map(type => (
-                  <button
-                    key={type}
-                    onClick={() => setSelectedBlockType(type)}
-                    className={`px-3 py-1 rounded capitalize text-sm ${
-                      selectedBlockType === type 
-                        ? 'bg-blue-500 text-white' 
-                        : 'bg-gray-200 hover:bg-gray-300'
-                    }`}
-                  >
-                    {type}
-                    {loadedImages[type] && <span className="ml-1">🖼️</span>}
-                  </button>
-                ))}
+          <div className="space-y-2">
+            {Object.entries(
+              Object.entries(BLOCK_TYPES).reduce((acc, [id, block]) => {
+                if (!acc[block.category]) acc[block.category] = [];
+                acc[block.category].push({ ...block, id });
+                return acc;
+              }, {} as Record<string, Array<typeof BLOCK_TYPES[keyof typeof BLOCK_TYPES] & { id: string }>>)
+            ).map(([category, blocks]) => (
+              <div key={category}>
+                <p className="text-xs text-gray-500 mb-1 capitalize">{category}</p>
+                <div className="flex flex-wrap gap-2">
+                  {blocks.map((block) => (
+                    <button
+                      key={block.id}
+                      onClick={() => setSelectedBlockType(block.id as BlockTypeId)}
+                      className={`px-3 py-1 rounded text-sm ${
+                        selectedBlockType === block.id
+                          ? category === 'terrain' ? 'bg-blue-500 text-white' : 'bg-green-500 text-white'
+                          : 'bg-gray-200 hover:bg-gray-300'
+                      }`}
+                    >
+                      {block.name}
+                      {loadedImages[block.id] && <span className="ml-1">✓</span>}
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
-            
-            {/* Plant blocks */}
-            <div className="col-span-2">
-              <p className="text-xs text-gray-500 mb-1">Plants</p>
-              <div className="flex flex-wrap gap-2">
-                {(['flower', 'tree', 'bush', 'morning-glory'] as const).map(type => (
-                  <button
-                    key={type}
-                    onClick={() => setSelectedBlockType(type)}
-                    className={`px-3 py-1 rounded capitalize text-sm ${
-                      selectedBlockType === type 
-                        ? 'bg-green-500 text-white' 
-                        : 'bg-gray-200 hover:bg-gray-300'
-                    }`}
-                  >
-                    {type === 'morning-glory' ? 'Morning Glory' : type}
-                    {loadedImages[type] && <span className="ml-1">🖼️</span>}
-                  </button>
-                ))}
-              </div>
-            </div>
+            ))}
           </div>
         </div>
+
         
         <div className="text-sm text-gray-600">
           <p>Blocks: {blocks.length}</p>
@@ -516,21 +688,32 @@ const IsometricGarden: React.FC = () => {
             </p>
           )}
         </div>
-      </div>
+      </div> 
+      */}
 
-      {/* Instructions */}
-      <div className="absolute bottom-4 left-4 bg-white rounded-lg shadow-lg p-4 max-w-md">
-        <h4 className="font-semibold mb-2">Custom Block Images:</h4>
-        <div className="text-sm text-gray-600 space-y-1">
-          <p>To add custom images for blocks:</p>
-          <ul className="list-disc list-inside ml-2">
-            <li>Morning Glory: <code className="bg-gray-100 px-1 text-xs">public/plants/morning-glory.png</code></li>
-            <li>Dirt: <code className="bg-gray-100 px-1 text-xs">public/blocks/dirt.png</code></li>
-            <li>Add more in <code className="bg-gray-100 px-1 text-xs">BLOCK_IMAGES</code> config</li>
-          </ul>
-          <p className="text-xs mt-2">Blocks with images show 🖼️ icon</p>
-        </div>
-      </div>
+
+      {/* Block Slideover */}
+      <BlockSlideover
+        block={selectedBlock}
+        isOpen={isSlideoverOpen}
+        onClose={() => {
+          setIsSlideoverOpen(false);
+          setSelectedBlock(null);
+        }}
+        onDelete={handleDeleteBlock}
+        onUpdateBlock={handleUpdateBlock}
+        onDuplicateBlock={handleDuplicateBlock}
+      />
+
+      {/* Main Slideover */}
+      <MainSlideover
+        isOpen={isMainSlideoverOpen}
+        onClose={() => setIsMainSlideoverOpen(false)}
+        selectedBlockType={selectedInventoryBlock}
+        onSelectBlockType={setSelectedInventoryBlock}
+      />
+
+
     </div>
   );
 };
