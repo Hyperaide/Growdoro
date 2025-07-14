@@ -1,3 +1,5 @@
+'use client'
+
 import { XIcon, TimerIcon, PlayIcon, PauseIcon, CheckIcon, PackageIcon, PlantIcon, FlowerLotusIcon, ListChecksIcon, ArrowsOutSimpleIcon } from "@phosphor-icons/react";
 import { motion, AnimatePresence } from "motion/react";
 import { useRef, useState, useEffect } from "react";
@@ -7,7 +9,7 @@ import { BLOCK_TYPES, BlockTypeId } from "../constants/blocks";
 import PackOpeningModal from "./PackOpeningModal";
 import NumberFlow, { NumberFlowGroup } from '@number-flow/react'
 
-interface MainSlideoverProps {
+interface MobileMenuProps {
   isOpen: boolean;
   onClose?: () => void;
   selectedBlockType?: string | null;
@@ -102,7 +104,7 @@ const getRandomBlockTypes = (count: number): string[] => {
   return selected;
 };
 
-export default function MainSlideover({ isOpen, onClose, selectedBlockType, onSelectBlockType }: MainSlideoverProps) {
+export default function MobileMenu({ isOpen, onClose, selectedBlockType, onSelectBlockType }: MobileMenuProps) {
   const mainSlideoverRef = useRef<HTMLDivElement>(null);
   const [timerMinutes, setTimerMinutes] = useState(25);
   const [activeSession, setActiveSession] = useState<Session | null>(null);
@@ -432,7 +434,7 @@ export default function MainSlideover({ isOpen, onClose, selectedBlockType, onSe
             ease: 'easeInOut'
           }}
           ref={mainSlideoverRef}
-          className={`hidden sm:block fixed left-2 top-2 w-full overflow-y-auto max-w-sm h-max bg-white rounded-xl strong-shadow z-50 p-2`}
+          className={`absolute left-2 top-2 right-2 w-full overflow-y-auto max-w-sm h-max sm:hidden bg-white rounded-xl strong-shadow z-50 p-2`}
           onClick={(e) => e.stopPropagation()}
           tabIndex={-1}
       >

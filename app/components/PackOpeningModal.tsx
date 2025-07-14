@@ -1,3 +1,5 @@
+'use client'
+
 import { PackageIcon } from "@phosphor-icons/react";
 import { motion, AnimatePresence } from "motion/react";
 import { useState, useEffect } from "react";

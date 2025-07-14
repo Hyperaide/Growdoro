@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono, Gowun_Batang, Tiny5, Barlow } from "next/font/google";
 import "./globals.css";
+import MobileMenu from "./components/MobileMenu";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -49,6 +50,7 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} ${gowunBatang.variable} ${tiny5.variable} ${barlow.variable} antialiased`}
       >
+        <MobileMenu isOpen={true} />
         {children}
 
         <div className="flex flex-col absolute bottom-4 left-4 pointer-events-none">
