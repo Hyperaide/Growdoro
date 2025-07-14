@@ -196,36 +196,55 @@ export default function MainSlideover({ isOpen, onClose, selectedBlockType, onSe
   // Handle timer completion
   useEffect(() => {
     if (activeSession && remainingTime === 0 && !activeSession.completedAt) {
-      // Complete the session
-      db.transact(
-        db.tx.sessions[activeSession.id].update({
-          completedAt: Date.now()
-        })
-      );
-      
-      // Show browser notification
-      if ('Notification' in window) {
-        if (Notification.permission === 'granted') {
-          new Notification('Timer Complete! 🌱', {
-            body: `Your ${Math.floor(activeSession.timeInSeconds / 60)} minute focus session is complete. Claim your seed pack!`,
-            icon: '/plants/morning-glory.png', // Using an existing plant image as icon
-            tag: 'timer-complete',
-            requireInteraction: false
-          });
-        } else if (Notification.permission !== 'denied') {
-          // Request permission if not already denied
-          Notification.requestPermission().then(permission => {
-            if (permission === 'granted') {
-              new Notification('Timer Complete! 🌱', {
-                body: `Your ${Math.floor(activeSession.timeInSeconds / 60)} minute focus session is complete. Claim your seed pack!`,
-                icon: '/plants/morning-glory.png',
-                tag: 'timer-complete',
-                requireInteraction: false
-              });
+      // Show browser notification first, before updating the database
+      const showNotification = async () => {
+        if ('Notification' in window) {
+          if (Notification.permission === 'granted') {
+            new Notification('Timer Complete! 🌱', {
+              body: `Your ${Math.floor(activeSession.timeInSeconds / 60)} minute focus session is complete. Claim your seed pack!`,
+              icon: '/plants/morning-glory.png', // Using an existing plant image as icon
+              tag: 'timer-complete',
+              requireInteraction: false
+            });
+          } else if (Notification.permission !== 'denied') {
+            // Request permission if not already denied
+            try {
+              const permission = await Notification.requestPermission();
+              if (permission === 'granted') {
+                new Notification('Timer Complete! 🌱', {
+                  body: `Your ${Math.floor(activeSession.timeInSeconds / 60)} minute focus session is complete. Claim your seed pack!`,
+                  icon: '/plants/morning-glory.png',
+                  tag: 'timer-complete',
+                  requireInteraction: false
+                });
+              }
+            } catch (error) {
+              console.error('Error requesting notification permission:', error);
             }
-          });
+          }
         }
-      }
+        
+        // Play a sound if possible
+        try {
+          const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBTGH0fPTgjMGHm7A7+OZURE');
+          audio.volume = 0.5;
+          audio.play();
+        } catch (error) {
+          console.log('Could not play notification sound');
+        }
+      };
+      
+      // Show notification immediately
+      showNotification();
+      
+      // Complete the session after a small delay to ensure notification shows
+      setTimeout(() => {
+        db.transact(
+          db.tx.sessions[activeSession.id].update({
+            completedAt: Date.now()
+          })
+        );
+      }, 100);
     }
   }, [activeSession, remainingTime]);
 
