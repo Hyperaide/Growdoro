@@ -217,6 +217,25 @@ export default function MainSlideover({ isOpen, onClose, selectedBlockType, onSe
     return () => clearInterval(interval);
   }, [activeSession, isPaused, totalPausedTime]);
 
+  // Update document title with timer
+  useEffect(() => {
+    const originalTitle = document.title;
+    
+    if (activeSession && !activeSession.completedAt && remainingTime > 0) {
+      const mins = Math.floor(remainingTime / 60);
+      const secs = remainingTime % 60;
+      const timeString = `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+      document.title = `${timeString} - Growdoro`;
+    } else {
+      document.title = originalTitle;
+    }
+
+    // Cleanup: restore original title when component unmounts or timer ends
+    return () => {
+      document.title = originalTitle;
+    };
+  }, [activeSession, remainingTime]);
+
   // Handle timer completion
   useEffect(() => {
     if (activeSession && remainingTime === 0 && !activeSession.completedAt) {
