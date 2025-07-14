@@ -432,7 +432,7 @@ export default function MainSlideover({ isOpen, onClose, selectedBlockType, onSe
             ease: 'easeInOut'
           }}
           ref={mainSlideoverRef}
-          className={`fixed left-2 bottom-2 top-2 w-full overflow-y-auto max-w-sm ${activeTab === null ? 'h-min' : 'h-max max-h-[70%]'} bg-white rounded-xl strong-shadow z-50 p-2`}
+          className={`fixed left-2 top-2 w-full overflow-y-auto max-w-sm h-max max-h-[70%] bg-white rounded-xl strong-shadow z-50 p-2`}
           onClick={(e) => e.stopPropagation()}
           tabIndex={-1}
       >
