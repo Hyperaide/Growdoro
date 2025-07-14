@@ -13,6 +13,7 @@ interface Block {
   z: number;
   type: BlockTypeId;
   placedAt?: number;
+  plantedAt?: number;
 }
 
 interface BlockSlideoverProps {
@@ -104,12 +105,25 @@ export default function BlockSlideover({ block, isOpen, onClose, onUpdateBlock }
                 <p className="font-mono text-[11px] uppercase text-gray-500">{blockType.growthTime} days</p>
               </div>
               <div className="h-2 w-full bg-gray-100 rounded-full">
-                <div className="h-full bg-gradient-to-r from-green-500 to-gray-100 rounded-full" style={{ width: `${blockType.growthTime}%` }}></div>
+                {(() => {
+                  // Calculate growth progress
+                  let growthPercentage = 0;
+                  if (blockType.category === 'plant' && blockType.growthTime && block.plantedAt) {
+                    const daysSincePlanted = (Date.now() - block.plantedAt) / (1000 * 60 * 60 * 24);
+                    growthPercentage = Math.min((daysSincePlanted / blockType.growthTime) * 100, 100);
+                  }
+                  return (
+                    <div 
+                      className="h-full bg-gradient-to-r from-green-500 to-gray-100 rounded-full" 
+                      style={{ width: `${growthPercentage}%` }}
+                    ></div>
+                  );
+                })()}
               </div>
             </div>
           </div>
 
-          <div className="flex flex-row px-2">
+          {/* <div className="flex flex-row px-2">
             <div className="flex flex-col gap-2 w-full">
               <div className="flex flex-row gap-2 items-center justify-between">
                 <p className="font-mono text-[11px] uppercase font-medium text-gray-500">Decay Time</p>
@@ -119,7 +133,7 @@ export default function BlockSlideover({ block, isOpen, onClose, onUpdateBlock }
                 <div className="h-full bg-gradient-to-r to-red-500 from-gray-100 rounded-full ml-auto" style={{ width: `${blockType.growthTime}%` }}></div>
               </div>
             </div>
-          </div>
+          </div> */}
 
           <div className="flex flex-row px-2">
 

@@ -9,6 +9,8 @@ export interface BlockType {
   slideoverImage?: string;
   rarity: 'common' | 'uncommon' | 'rare' | 'legendary';
   category: 'terrain' | 'plant' | 'decoration';
+  imageScale?: number;  // Optional scale factor for this block's image
+  yOffset?: number;     // Optional vertical offset in pixels (positive moves up)
 }
 
 export const BLOCK_TYPES: Record<string, BlockType> = {
@@ -16,21 +18,69 @@ export const BLOCK_TYPES: Record<string, BlockType> = {
     id: 'dirt',
     name: 'Grass',
     latinName: 'Poaceae',
+    blurb: 'The ground of the garden. It\'s where everything grows.',
     imagePath: '/plants/dirt-p.png',
     category: 'terrain',
-    rarity: 'common'
+    growthTime: 0,
+    decayTime: 0,
+    rarity: 'common',
+    yOffset: 0  // Ground level, no offset needed
+  },
+  'marigold': {
+    id: 'marigold',
+    name: 'Marigold',
+    latinName: 'Tagetes',
+    blurb: 'A bright, cheerful flower that blooms in the summer. It\'s a symbol of joy and happiness.',
+    growthTime: 2,
+    decayTime: 2,
+    imagePath: '/plants/marigold.png',
+    slideoverImage: '/plants/marigold-slideover.png',
+    rarity: 'uncommon',
+    category: 'plant',
+    imageScale: 1.34,  // Small flowers might need moderate scaling
+    yOffset: 5  // Lift flowers up a bit
+  },
+  'lavender': {
+    id: 'lavender',
+    name: 'Lavender',
+    latinName: 'Lavandula',
+    blurb: 'A fragrant, purple flower that blooms in the summer. It\'s a symbol of love and peace.',
+    growthTime: 4,
+    decayTime: 2,
+    imagePath: '/plants/lavender.png',
+    slideoverImage: '/plants/lavender-slideover.png',
+    rarity: 'uncommon',
+    category: 'plant',
+    imageScale: 1.7,  // Similar to marigold
+    yOffset: 15// Slightly less lift than marigold
+  },
+  'bird-of-paradise': {
+    id: 'bird-of-paradise',
+    name: 'Bird of Paradise',
+    latinName: 'Strelitzia',
+    blurb: 'A tall, exotic flower that blooms in the summer. It\'s a symbol of joy and happiness.',
+    growthTime: 5,
+    decayTime: 2,
+    imagePath: '/plants/bird-of-paradise.png',
+    slideoverImage: '/plants/bird-of-paradise-slideover.png',
+    rarity: 'rare',
+    category: 'plant',
+    imageScale: 1.6,  // Taller plants might need more scaling
+    yOffset: 13  // Taller plants need more lift
   },
   'ghost-orchid': {
     id: 'ghost-orchid',
     name: 'Ghost Orchid',
     latinName: 'Dendrophylax lindenii',
     blurb: 'A leafless, rare orchid that floats in swamps and defies cultivation. Mysterious and prized.',
-    growthTime: 14,
+    growthTime: 7,
     decayTime: 2,
     imagePath: '/plants/ghost-orchid.png',
     slideoverImage: '/plants/ghost-orchid-slideover.png',
     rarity: 'legendary',
-    category: 'plant'
+    category: 'plant',
+    imageScale: 1.3,  // Delicate orchid might need specific scaling
+    yOffset: 0  // Medium lift for the floating orchid
   }
 };
 
@@ -58,7 +108,13 @@ export const TILE_CONFIG = {
   width: 64,    // Width of the diamond shape
   height: 38,   // Height of the diamond shape
   depth: 30,    // Height of block sides (for 3D effect)
-  imageScale: 1.22,  // Scale factor for images
+  defaultImageScale: 1.22,  // Default scale factor for images (can be overridden per block)
+};
+
+// Configuration for tilled grass (shown for growing plants)
+export const TILLED_GRASS_CONFIG = {
+  imageScale: 1.16,  // Scale for tilled grass image
+  yOffset: 0        // Y-offset for tilled grass (stays at ground level)
 };
 
 // Extract block IDs for type safety

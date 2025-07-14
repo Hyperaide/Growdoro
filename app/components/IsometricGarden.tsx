@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { BLOCK_TYPES, TILE_CONFIG, BlockTypeId } from '../constants/blocks';
+import { BLOCK_TYPES, TILE_CONFIG, BlockTypeId, TILLED_GRASS_CONFIG } from '../constants/blocks';
 import BlockSlideover from './BlockSlideover';
 import MainSlideover from './MainSlideover';
 import { HourglassIcon } from '@phosphor-icons/react';
@@ -315,6 +315,17 @@ const IsometricGarden: React.FC = () => {
       const targetWidth = size;
       const targetHeight = height + TILE_CONFIG.depth * camera.zoom;
       
+      // Determine if we're showing tilled grass
+      const isShowingTilledGrass = img === loadedImages['tilled-grass'];
+      
+      // Use appropriate configuration based on what we're showing
+      const imageScale = isShowingTilledGrass 
+        ? TILLED_GRASS_CONFIG.imageScale 
+        : (blockType?.imageScale ?? TILE_CONFIG.defaultImageScale);
+      const yOffset = isShowingTilledGrass 
+        ? TILLED_GRASS_CONFIG.yOffset 
+        : (blockType?.yOffset ?? 0);
+      
       // Calculate scaled dimensions maintaining aspect ratio
       const imgAspectRatio = img.width / img.height;
       const targetAspectRatio = targetWidth / targetHeight;
@@ -323,17 +334,17 @@ const IsometricGarden: React.FC = () => {
       
       if (imgAspectRatio > targetAspectRatio) {
         // Image is wider than target - fit to width
-        drawWidth = targetWidth * TILE_CONFIG.imageScale;
-        drawHeight = (targetWidth * TILE_CONFIG.imageScale) / imgAspectRatio;
+        drawWidth = targetWidth * imageScale;
+        drawHeight = (targetWidth * imageScale) / imgAspectRatio;
       } else {
         // Image is taller than target - fit to height
-        drawHeight = targetHeight * TILE_CONFIG.imageScale;
-        drawWidth = (targetHeight * TILE_CONFIG.imageScale) * imgAspectRatio;
+        drawHeight = targetHeight * imageScale;
+        drawWidth = (targetHeight * imageScale) * imgAspectRatio;
       }
       
-      // Center the image in the isometric cell
+      // Center the image in the isometric cell with y-offset applied
       const drawX = screenX - drawWidth / 2;
-      const drawY = screenY + (targetHeight - drawHeight) / 2;
+      const drawY = screenY - drawHeight / 2 - yOffset * camera.zoom; // Apply y-offset scaled by zoom
       
       ctx.drawImage(
         img,
