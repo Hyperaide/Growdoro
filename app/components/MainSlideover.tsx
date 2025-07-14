@@ -426,17 +426,28 @@ export default function MainSlideover({ isOpen, onClose, selectedBlockType, onSe
     <>
       <motion.div
           initial={{ x: '-100%', opacity: 0 }}
-          animate={{ x: isOpen ? 0 : '-100%', opacity: isOpen ? 1 : 0 }}
+          animate={{ x: isOpen ? '0%' : '-100%', opacity: isOpen ? 1 : 0 }}
           transition={{ 
             duration: 0.2, 
-            ease: 'easeInOut'
+            ease: 'easeInOut',
+            type: 'tween'
           }}
           ref={mainSlideoverRef}
-          className={`fixed left-2 top-2 w-full overflow-y-auto max-w-sm h-max max-h-[70%] bg-white rounded-xl strong-shadow z-50 p-2`}
+          className={`fixed left-2 top-2 overflow-y-auto bg-white rounded-xl strong-shadow z-50 p-2`}
+          style={{
+            width: '100%',
+            maxWidth: '24rem', // max-w-sm equivalent
+            maxHeight: '70%',
+            WebkitOverflowScrolling: 'touch',
+            willChange: 'transform',
+            WebkitBackfaceVisibility: 'hidden',
+            backfaceVisibility: 'hidden',
+            perspective: 1000
+          }}
           onClick={(e) => e.stopPropagation()}
           tabIndex={-1}
       >
-        <div className="h-full flex flex-col gap-2">
+        <div className="flex flex-col gap-2" style={{ height: '100%' }}>
           <div className="flex flex-row justify-between items-start">
             <div className="flex flex-col p-2">
               <h1 className="text-xs font-medium font-mono">{new Date(Date.now()).toLocaleTimeString()}</h1>
@@ -518,8 +529,9 @@ export default function MainSlideover({ isOpen, onClose, selectedBlockType, onSe
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
-                transition={{ duration: 0.2 }}
+                transition={{ duration: 0.2, type: 'tween' }}
                 className="flex-1"
+                style={{ WebkitTransform: 'translateZ(0)' }}
               >
                 {activeTab === 'timer' && (
                   <div className="flex-1 overflow-y-auto">

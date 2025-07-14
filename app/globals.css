@@ -12,6 +12,7 @@
 
 .strong-shadow {
   box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+  -webkit-box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
 }
 
 .pixelated {
@@ -127,4 +128,18 @@ canvas {
 /* Prevent pull-to-refresh on mobile */
 body {
   overscroll-behavior-y: contain;
+}
+
+/* Safari-specific fixes for animations and transforms */
+@supports (-webkit-appearance: none) {
+  .fixed {
+    -webkit-transform: translateZ(0);
+    transform: translateZ(0);
+  }
+  
+  /* Fix for Safari animation flickering */
+  [data-framer-component-type] {
+    -webkit-transform-style: preserve-3d;
+    transform-style: preserve-3d;
+  }
 }
