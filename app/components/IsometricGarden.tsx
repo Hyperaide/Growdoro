@@ -44,6 +44,16 @@ const IsometricGarden: React.FC = () => {
   const [selectedInventoryBlock, setSelectedInventoryBlock] = useState<string | null>(null);
   const [browserSessionId, setBrowserSessionId] = useState<string>('');
 
+  // Touch handling state
+  const [touchStartDistance, setTouchStartDistance] = useState<number | null>(null);
+  const [touchStartTime, setTouchStartTime] = useState<number>(0);
+  const [lastTouchPosition, setLastTouchPosition] = useState<{ x: number; y: number } | null>(null);
+  const [isTouchDragging, setIsTouchDragging] = useState(false);
+
+  // Mobile instructions state
+  const [showMobileInstructions, setShowMobileInstructions] = useState(false);
+  const [hasSeenInstructions, setHasSeenInstructions] = useState(false);
+
   // Get browser session ID on mount
   useEffect(() => {
     const STORAGE_KEY = 'gardenspace_session_id';
@@ -55,6 +65,13 @@ const IsometricGarden: React.FC = () => {
     }
     
     setBrowserSessionId(sessionId);
+
+    // Check if user has seen mobile instructions
+    const instructionsSeen = localStorage.getItem('gardenspace_mobile_instructions_seen');
+    if (!instructionsSeen && 'ontouchstart' in window) {
+      setShowMobileInstructions(true);
+    }
+    setHasSeenInstructions(!!instructionsSeen);
   }, []);
 
   // Load blocks from database on initial load
@@ -691,14 +708,141 @@ const IsometricGarden: React.FC = () => {
     // Right click disabled - blocks cannot be deleted, only moved
   };
 
+  // Touch event handlers for mobile support
+  const getTouchDistance = (touches: React.TouchList) => {
+    if (touches.length < 2) return null;
+    const dx = touches[0].clientX - touches[1].clientX;
+    const dy = touches[0].clientY - touches[1].clientY;
+    return Math.sqrt(dx * dx + dy * dy);
+  };
 
+  const handleTouchStart = (e: React.TouchEvent) => {
+    const touches = e.touches;
+    
+    if (touches.length === 2) {
+      // Two finger touch - prepare for pinch zoom
+      const distance = getTouchDistance(touches);
+      setTouchStartDistance(distance);
+      e.preventDefault();
+    } else if (touches.length === 1) {
+      // Single touch
+      const touch = touches[0];
+      setTouchStartTime(Date.now());
+      setLastTouchPosition({ x: touch.clientX, y: touch.clientY });
+      
+      // Check if touching a block
+      const { x, y } = screenToWorld(touch.clientX, touch.clientY);
+      const existingBlock = blocks.find(b => b.x === x && b.y === y && b.z === 0);
+      
+      if (existingBlock) {
+        // Long press will allow dragging
+        setTimeout(() => {
+          if (Date.now() - touchStartTime > 500 && lastTouchPosition) {
+            setIsTouchDragging(true);
+            setDraggedBlock(existingBlock);
+            setBlocks(blocks.filter(b => b.id !== existingBlock.id));
+          }
+        }, 500);
+      }
+    }
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    const touches = e.touches;
+    
+    if (touches.length === 2 && touchStartDistance !== null) {
+      // Pinch zoom
+      const currentDistance = getTouchDistance(touches);
+      if (currentDistance !== null) {
+        const scale = currentDistance / touchStartDistance;
+        const newZoom = Math.max(0.5, Math.min(3, camera.zoom * scale));
+        setCamera({ ...camera, zoom: newZoom });
+        setTouchStartDistance(currentDistance);
+      }
+      e.preventDefault();
+    } else if (touches.length === 1) {
+      const touch = touches[0];
+      
+      if (isTouchDragging && draggedBlock) {
+        // Update hover position for dragging
+        const { x, y } = screenToWorld(touch.clientX, touch.clientY);
+        setHoveredTile({ x, y });
+      } else if (lastTouchPosition && !isTouchDragging) {
+        // Pan the camera
+        const deltaX = touch.clientX - lastTouchPosition.x;
+        const deltaY = touch.clientY - lastTouchPosition.y;
+        
+        // Only start panning if moved more than 10 pixels
+        if (Math.abs(deltaX) > 10 || Math.abs(deltaY) > 10) {
+          setIsPanning(true);
+          setCamera({
+            ...camera,
+            x: camera.x + deltaX,
+            y: camera.y + deltaY
+          });
+          setLastTouchPosition({ x: touch.clientX, y: touch.clientY });
+        }
+      }
+    }
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    const touchDuration = Date.now() - touchStartTime;
+    
+    if (isTouchDragging && draggedBlock && hoveredTile) {
+      // Complete the drag
+      const existingBlock = blocks.find(b => b.x === hoveredTile.x && b.y === hoveredTile.y && b.z === 0);
+      
+      if (!existingBlock) {
+        const movedBlock: Block = {
+          ...draggedBlock,
+          x: hoveredTile.x,
+          y: hoveredTile.y,
+          placedAt: Date.now()
+        };
+        setBlocks([...blocks, movedBlock]);
+        
+        db.transact(
+          db.tx.blocks[movedBlock.id].update({
+            x: hoveredTile.x,
+            y: hoveredTile.y,
+            z: 0
+          })
+        ).catch(error => {
+          console.error('Failed to update block position in database:', error);
+        });
+      } else {
+        setBlocks([...blocks, draggedBlock]);
+      }
+    } else if (!isPanning && touchDuration < 300 && lastTouchPosition) {
+      // Short tap - treat as click
+      const { x, y } = screenToWorld(lastTouchPosition.x, lastTouchPosition.y);
+      const existingBlock = blocks.find(b => b.x === x && b.y === y && b.z === 0);
+      
+      if (existingBlock) {
+        setSelectedBlock(existingBlock);
+        setIsSlideoverOpen(true);
+      } else if (selectedInventoryBlock) {
+        handlePlaceBlockFromInventory(x, y);
+      }
+    }
+    
+    // Reset all touch states
+    setTouchStartDistance(null);
+    setTouchStartTime(0);
+    setLastTouchPosition(null);
+    setIsPanning(false);
+    setIsTouchDragging(false);
+    setDraggedBlock(null);
+    setHoveredTile(null);
+  };
 
   const handleUpdateBlock = (blockId: string, updates: Partial<Block>) => {
     setBlocks(blocks.map(b => b.id === blockId ? { ...b, ...updates } : b));
   };
 
   return (
-    <div className="relative w-full h-screen overflow-hidden">
+    <div className="relative w-full h-screen overflow-hidden touch-none">
       <canvas
         ref={canvasRef}
         className={`absolute inset-0 ${
@@ -712,6 +856,9 @@ const IsometricGarden: React.FC = () => {
         onMouseLeave={handleMouseLeave}
         onWheel={handleWheel}
         onContextMenu={handleContextMenu}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
       />
       
 
@@ -812,6 +959,53 @@ const IsometricGarden: React.FC = () => {
         onSelectBlockType={setSelectedInventoryBlock}
       />
 
+      {/* Mobile Instructions Overlay */}
+      {showMobileInstructions && (
+        <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl p-6 max-w-sm w-full">
+            <h2 className="text-lg font-bold mb-4">Welcome to Growdoro! 🌱</h2>
+            <div className="space-y-3 text-sm">
+              <div className="flex items-start gap-2">
+                <span className="text-lg">👆</span>
+                <div>
+                  <p className="font-medium">Tap</p>
+                  <p className="text-gray-600">Select blocks or place from inventory</p>
+                </div>
+              </div>
+              <div className="flex items-start gap-2">
+                <span className="text-lg">👆➡️</span>
+                <div>
+                  <p className="font-medium">Drag</p>
+                  <p className="text-gray-600">Pan around the garden</p>
+                </div>
+              </div>
+              <div className="flex items-start gap-2">
+                <span className="text-lg">🤏</span>
+                <div>
+                  <p className="font-medium">Pinch</p>
+                  <p className="text-gray-600">Zoom in and out</p>
+                </div>
+              </div>
+              <div className="flex items-start gap-2">
+                <span className="text-lg">👆💤</span>
+                <div>
+                  <p className="font-medium">Long Press</p>
+                  <p className="text-gray-600">Hold on a block to move it</p>
+                </div>
+              </div>
+            </div>
+            <button
+              onClick={() => {
+                setShowMobileInstructions(false);
+                localStorage.setItem('gardenspace_mobile_instructions_seen', 'true');
+              }}
+              className="mt-6 w-full bg-green-500 text-white py-2 px-4 rounded-lg font-medium hover:bg-green-600 transition-colors"
+            >
+              Got it!
+            </button>
+          </div>
+        </div>
+      )}
 
     </div>
   );

@@ -109,3 +109,22 @@
 .slider:hover::-moz-range-track {
   background: #d1d5db;
 }
+
+/* Prevent text selection and improve touch handling on mobile */
+* {
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+/* Ensure canvas handles touch events properly */
+canvas {
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Prevent pull-to-refresh on mobile */
+body {
+  overscroll-behavior-y: contain;
+}

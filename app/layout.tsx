@@ -43,6 +43,7 @@ export default function RootLayout({
   return (
     <html lang="en" className="bg-sky-100">
       <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
         <script async src="https://cdn.seline.com/seline.js" data-token="ebcbd75ffeaa20e"></script>
       </head>
       <body
@@ -50,9 +51,9 @@ export default function RootLayout({
       >
         {children}
 
-        <div className="flex flex-col absolute bottom-4 left-4">
-          <h1 className="text-2xl font-bold font-barlow uppercase text-black/20">Growdoro</h1>
-          <p className="text-xs text-black/40">An infinite garden productivity app. Built by <a href="https://www.x.com/dqnamo/" className="text-black/50">JP</a></p>
+        <div className="flex flex-col absolute bottom-4 left-4 pointer-events-none">
+          <h1 className="text-lg md:text-2xl font-bold font-barlow uppercase text-black/20">Growdoro</h1>
+          <p className="text-[10px] md:text-xs text-black/40">An infinite garden productivity app. Built by <a href="https://www.x.com/dqnamo/" className="text-black/50 pointer-events-auto">JP</a></p>
         </div>
       </body>
     </html>
