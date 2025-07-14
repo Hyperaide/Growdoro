@@ -42,6 +42,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="bg-sky-100">
+      <head>
+        <script async src="https://cdn.seline.com/seline.js" data-token="ebcbd75ffeaa20e"></script>
+      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} ${gowunBatang.variable} ${tiny5.variable} ${barlow.variable} antialiased`}
       >
