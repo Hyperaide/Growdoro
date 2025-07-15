@@ -52,7 +52,7 @@ export const BLOCK_TYPES: Record<string, BlockType> = {
     rarity: 'uncommon',
     category: 'plant',
     imageScale: 1.7,  // Similar to marigold
-    yOffset: 15// Slightly less lift than marigold
+    yOffset: 14// Slightly less lift than marigold
   },
   'bird-of-paradise': {
     id: 'bird-of-paradise',
