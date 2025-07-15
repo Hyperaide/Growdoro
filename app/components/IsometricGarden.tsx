@@ -10,6 +10,7 @@ import { id } from '@instantdb/react';
 import { XIcon } from '@phosphor-icons/react';
 import { DateTime } from 'luxon';
 import Dock from './Dock';
+import posthog from 'posthog-js';
 
 interface Block {
   id: string;
@@ -573,6 +574,12 @@ const IsometricGarden: React.FC = () => {
     await db.transact(
       db.tx.blocks[unplacedBlock.id].update(updateData)
     );
+
+    posthog.capture('block_placed', {
+      block_id: unplacedBlock.id,
+      session_id: browserSessionId,
+      block_type: selectedInventoryBlock
+    })
 
     // Add to local state
     const newBlock: Block = {
