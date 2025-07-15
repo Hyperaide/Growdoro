@@ -293,6 +293,8 @@ const IsometricGarden: React.FC = () => {
       animationOffset = (1 - easeOutBack(progress)) * 15; // Start 15 pixels higher
     }
     
+
+    
     // Determine which image to show based on growth status
     let imageToShow = block.type;
     const blockType = BLOCK_TYPES[block.type];
@@ -325,7 +327,7 @@ const IsometricGarden: React.FC = () => {
       ctx.imageSmoothingQuality = 'high';
       
       if (isHovered) {
-        ctx.globalAlpha = 0.8;
+        ctx.globalAlpha = 0.7; // 50% opacity when hovered
       }
       
       // Calculate the target area for the isometric cell
@@ -371,33 +373,7 @@ const IsometricGarden: React.FC = () => {
         drawHeight
       );
       
-      // Draw outline if hovered
-      if (isHovered) {
-        ctx.globalAlpha = 1;
-        ctx.strokeStyle = '#ffffff';
-        ctx.lineWidth = 2;
-        ctx.setLineDash([]);
-        
-        // Draw full block outline including depth
-        // Top diamond
-        ctx.beginPath();
-        ctx.moveTo(screenX, screenY);
-        ctx.lineTo(screenX + size / 2, screenY + height / 2);
-        ctx.lineTo(screenX, screenY + height);
-        ctx.lineTo(screenX - size / 2, screenY + height / 2);
-        ctx.closePath();
-        ctx.stroke();
-        
-        // Vertical edges
-        ctx.beginPath();
-        ctx.moveTo(screenX + size / 2, screenY + height / 2);
-        ctx.lineTo(screenX + size / 2, screenY + height / 2 + TILE_CONFIG.depth * camera.zoom);
-        ctx.moveTo(screenX, screenY + height);
-        ctx.lineTo(screenX, screenY + height + TILE_CONFIG.depth * camera.zoom);
-        ctx.moveTo(screenX - size / 2, screenY + height / 2);
-        ctx.lineTo(screenX - size / 2, screenY + height / 2 + TILE_CONFIG.depth * camera.zoom);
-        ctx.stroke();
-      }
+      // Remove the outline drawing - we'll just keep the hover effect on the image
       
       ctx.restore();
     }

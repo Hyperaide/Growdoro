@@ -1,4 +1,5 @@
-import { XIcon, TimerIcon, PlayIcon, PauseIcon, CheckIcon, PackageIcon, PlantIcon, FlowerLotusIcon, ListChecksIcon, ArrowsOutSimpleIcon } from "@phosphor-icons/react";
+'use client'
+import { XIcon, TimerIcon, PlayIcon, PauseIcon, CheckIcon, PackageIcon, PlantIcon, FlowerLotusIcon, ListChecksIcon, ArrowsOutSimpleIcon, BellIcon } from "@phosphor-icons/react";
 import { motion, AnimatePresence } from "motion/react";
 import { useRef, useState, useEffect } from "react";
 import { db } from "../../lib/db";
@@ -115,10 +116,18 @@ export default function MainSlideover({ isOpen, onClose, selectedBlockType, onSe
   const [showPackOpening, setShowPackOpening] = useState(false);
   const [pausedAt, setPausedAt] = useState<number | null>(null);
   const [totalPausedTime, setTotalPausedTime] = useState(0);
+  const [notificationPermission, setNotificationPermission] = useState<NotificationPermission | null>(null);
   
   // Get browser session ID on mount
   useEffect(() => {
     setBrowserSessionId(getBrowserSessionId());
+  }, []);
+  
+  // Check notification permission on mount
+  useEffect(() => {
+    if ('Notification' in window) {
+      setNotificationPermission(Notification.permission);
+    }
   }, []);
   
   // Handle tab visibility changes
@@ -294,7 +303,8 @@ export default function MainSlideover({ isOpen, onClose, selectedBlockType, onSe
   const startTimer = async () => {
     // Request notification permission when starting timer
     if ('Notification' in window && Notification.permission === 'default') {
-      await Notification.requestPermission();
+      const permission = await Notification.requestPermission();
+      setNotificationPermission(permission);
     }
     
     const newSessionId = id();
@@ -408,6 +418,23 @@ export default function MainSlideover({ isOpen, onClose, selectedBlockType, onSe
       }
     } finally {
       setClaimingReward(false);
+    }
+  };
+
+  const requestNotificationPermission = async () => {
+    if ('Notification' in window) {
+      // If permission was previously denied, we can't request again programmatically
+      if (Notification.permission === 'denied') {
+        alert('Notifications are blocked. Please enable them in your browser settings:\n\n1. Click the lock icon in the address bar\n2. Find "Notifications" \n3. Change from "Block" to "Allow"\n4. Refresh the page');
+        return;
+      }
+      
+      try {
+        const permission = await Notification.requestPermission();
+        setNotificationPermission(permission);
+      } catch (error) {
+        console.error('Error requesting notification permission:', error);
+      }
     }
   };
 
@@ -574,6 +601,41 @@ export default function MainSlideover({ isOpen, onClose, selectedBlockType, onSe
                       <PlayIcon size={12} weight="fill" />
                       Start Timer
                     </button>
+
+                    
+                      {notificationPermission === 'denied' && (
+                        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mt-3 text-xs text-center">
+                          <BellIcon size={20} weight="fill" className="text-yellow-600 mx-auto mb-2" />
+                          <p className="text-yellow-800 font-medium mb-1">Notifications Disabled</p>
+                          <p className="text-yellow-700 mb-2">
+                            Enable notifications to get alerts when your timer completes.
+                          </p>
+                          <button
+                            onClick={requestNotificationPermission}
+                            className="bg-yellow-600 text-white px-3 py-1 rounded text-xs hover:bg-yellow-700 transition-colors flex items-center gap-1 mx-auto"
+                          >
+                            <BellIcon size={12} weight="fill" />
+                            Try Again
+                          </button>
+                        </div>
+                      )}
+                      {notificationPermission === 'default' && (
+                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mt-3 text-xs text-center">
+                          <BellIcon size={20} weight="fill" className="text-blue-600 mx-auto mb-2" />
+                          <p className="text-blue-800 font-medium mb-1">Enable Notifications?</p>
+                          <p className="text-blue-700 mb-2">
+                            Get alerts when your focus session completes.
+                          </p>
+                          <button
+                            onClick={requestNotificationPermission}
+                            className="bg-blue-600 text-white px-3 py-1 rounded text-xs hover:bg-blue-700 transition-colors flex items-center gap-1 mx-auto"
+                          >
+                            <BellIcon size={12} weight="fill" />
+                            Enable Notifications
+                          </button>
+                        </div>
+                      )}
+                  
                   </>
                 ) : (
                   <>
