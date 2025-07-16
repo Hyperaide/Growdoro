@@ -59,7 +59,7 @@ function AuthContextProviderInner({ children }: { children: React.ReactNode }) {
 
     // Initialize session ID (for non-authenticated users)
     useEffect(() => {
-        const STORAGE_KEY = 'growdoro_session_id';
+        const STORAGE_KEY = 'gardenspace_session_id';
         let storedSessionId = localStorage.getItem(STORAGE_KEY);
         
         if (!storedSessionId) {

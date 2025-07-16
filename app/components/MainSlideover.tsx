@@ -39,7 +39,7 @@ interface Block {
 
 // Get or create a browser session ID
 const getBrowserSessionId = () => {
-  const STORAGE_KEY = 'growdoro_session_id';
+  const STORAGE_KEY = 'gardenspace_session_id';
   let sessionId = localStorage.getItem(STORAGE_KEY);
   
   if (!sessionId) {

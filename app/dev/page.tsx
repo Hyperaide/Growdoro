@@ -18,7 +18,7 @@ export default function DevPage() {
 
   // Get browser session ID on mount
   useEffect(() => {
-    const STORAGE_KEY = 'growdoro_session_id';
+    const STORAGE_KEY = 'gardenspace_session_id';
     let sessionId = localStorage.getItem(STORAGE_KEY);
     
     if (!sessionId) {
