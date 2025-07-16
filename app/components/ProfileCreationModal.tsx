@@ -3,8 +3,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { UserIcon, SparkleIcon, ArrowRightIcon, CheckCircleIcon, XCircleIcon, CircleNotchIcon, SealCheckIcon } from '@phosphor-icons/react';
 import { motion, AnimatePresence } from 'motion/react';
-import { db } from '../../lib/db';
-import { id } from '@instantdb/react';
 
 interface ProfileCreationModalProps {
     isOpen: boolean;
@@ -33,17 +31,22 @@ export default function ProfileCreationModal({ isOpen, onClose, userId }: Profil
         setIsUsernameAvailable(null);
 
         try {
-            const { data } = await db.queryOnce({
-                profiles: {
-                    $: {
-                        where: {
-                            username: usernameToCheck.toLowerCase()
-                        }
-                    }
-                }
+            const response = await fetch('/api/check-username', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ username: usernameToCheck }),
             });
 
-            setIsUsernameAvailable(!data?.profiles || data.profiles.length === 0);
+            const result = await response.json();
+
+            if (response.ok) {
+                setIsUsernameAvailable(result.available);
+            } else {
+                console.error('Error checking username:', result.error);
+                setIsUsernameAvailable(null);
+            }
         } catch (err) {
             console.error('Error checking username:', err);
             setIsUsernameAvailable(null);
@@ -127,37 +130,31 @@ export default function ProfileCreationModal({ isOpen, onClose, userId }: Profil
         setIsCreating(true);
 
         try {
-            // Double-check availability before creating
-            const { data } = await db.queryOnce({
-                profiles: {
-                    $: {
-                        where: {
-                            username: username.toLowerCase()
-                        }
-                    }
-                }
+            // Create profile using server-side endpoint
+            const response = await fetch('/api/create-profile', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ username: username, userId: userId }),
             });
 
-            if (data?.profiles && data.profiles.length > 0) {
-                setError('Username already taken');
+            const result = await response.json();
+
+            if (!response.ok) {
+                setError(result.error || 'Failed to create profile');
                 setIsCreating(false);
                 return;
             }
 
-            const profileId = id();
-            setProfileId(profileId);
-            // Create the profile
-            await db.transact(
-                db.tx.profiles[profileId].update({
-                    username: username.toLowerCase(),
-                    createdAt: Date.now(),
-                }).link({
-                    user: userId
-                })
-            );
-
-            // Move to step 2
-            setStep(2);
+            if (result.success) {
+                setProfileId(result.profileId);
+                // Move to step 2
+                setStep(2);
+            } else {
+                setError('Failed to create profile. Please try again.');
+                setIsCreating(false);
+            }
         } catch (err) {
             console.error('Error creating profile:', err);
             setError('Failed to create profile. Please try again.');
