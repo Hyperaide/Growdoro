@@ -1,0 +1,453 @@
+import { init } from '@instantdb/admin';
+import { NextResponse } from 'next/server';
+import { id } from '@instantdb/core';
+
+// Reserved usernames (same as check-username)
+const RESERVED_USERNAMES = [
+  'admin',
+  'administrator',
+  'support',
+  'help',
+  'api',
+  'www',
+  'mail',
+  'ftp',
+  'blog',
+  'news',
+  'store',
+  'shop',
+  'app',
+  'mobile',
+  'web',
+  'test',
+  'staging',
+  'dev',
+  'development',
+  'prod',
+  'production',
+  'root',
+  'user',
+  'users',
+  'account',
+  'accounts',
+  'profile',
+  'profiles',
+  'settings',
+  'config',
+  'configuration',
+  'dashboard',
+  'panel',
+  'control',
+  'manage',
+  'manager',
+  'management',
+  'system',
+  'security',
+  'login',
+  'logout',
+  'signin',
+  'signup',
+  'register',
+  'registration',
+  'auth',
+  'authentication',
+  'password',
+  'reset',
+  'forgot',
+  'recovery',
+  'growdoro',
+  'official',
+  'staff',
+  'moderator',
+  'mod',
+  'owner',
+  'founder',
+  'team',
+  'about',
+  'contact',
+  'privacy',
+  'terms',
+  'legal',
+  'service',
+  'services',
+  'info',
+  'information',
+  'public',
+  'private',
+  'internal',
+  'external',
+  'guest',
+  'anonymous',
+  'null',
+  'undefined',
+  'none',
+  'empty',
+  'default',
+  'example',
+  'sample',
+  'demo',
+  'placeholder',
+  'temp',
+  'temporary',
+  'backup',
+  'archive',
+  'deleted',
+  'banned',
+  'suspended',
+  'blocked',
+  'disabled',
+  'inactive',
+  'reserved',
+  'premium',
+  'pro',
+  'plus',
+  'vip',
+  'gold',
+  'silver',
+  'bronze',
+  'diamond',
+  'platinum',
+  'enterprise',
+  'business',
+  'corporate',
+  'company',
+  'organization',
+  'org',
+  'group',
+  'community',
+  'forum',
+  'discussion',
+  'chat',
+  'message',
+  'messages',
+  'notification',
+  'notifications',
+  'alert',
+  'alerts',
+  'warning',
+  'warnings',
+  'error',
+  'errors',
+  'status',
+  'health',
+  'monitor',
+  'monitoring',
+  'analytics',
+  'stats',
+  'statistics',
+  'report',
+  'reports',
+  'data',
+  'database',
+  'server',
+  'client',
+  'cache',
+  'session',
+  'cookie',
+  'token',
+  'key',
+  'secret',
+  'hash',
+  'encrypt',
+  'decrypt',
+  'encode',
+  'decode',
+  'upload',
+  'download',
+  'file',
+  'files',
+  'image',
+  'images',
+  'photo',
+  'photos',
+  'video',
+  'videos',
+  'audio',
+  'music',
+  'sound',
+  'media',
+  'content',
+  'post',
+  'posts',
+  'comment',
+  'comments',
+  'reply',
+  'replies',
+  'like',
+  'likes',
+  'share',
+  'shares',
+  'follow',
+  'following',
+  'followers',
+  'friend',
+  'friends',
+  'search',
+  'find',
+  'discover',
+  'explore',
+  'browse',
+  'filter',
+  'sort',
+  'order',
+  'list',
+  'grid',
+  'table',
+  'view',
+  'views',
+  'page',
+  'pages',
+  'home',
+  'index',
+  'main',
+  'welcome',
+  'hello',
+  'hi',
+  'hey',
+  'goodbye',
+  'bye',
+  'thanks',
+  'thank',
+  'please',
+  'sorry',
+  'excuse',
+  'pardon',
+  'yes',
+  'no',
+  'maybe',
+  'ok',
+  'okay',
+  'sure',
+  'fine',
+  'good',
+  'great',
+  'awesome',
+  'amazing',
+  'fantastic',
+  'wonderful',
+  'excellent',
+  'perfect',
+  'best',
+  'top',
+  'first',
+  'last',
+  'next',
+  'previous',
+  'new',
+  'old',
+  'recent',
+  'latest',
+  'current',
+  'active',
+  'live',
+  'online',
+  'offline',
+  'available',
+  'unavailable',
+  'busy',
+  'away',
+  'back',
+  'return',
+  'exit',
+  'quit',
+  'close',
+  'open',
+  'start',
+  'stop',
+  'pause',
+  'resume',
+  'play',
+  'end',
+  'finish',
+  'complete',
+  'done',
+  'ready',
+  'loading',
+  'wait',
+  'pending',
+  'processing',
+  'success',
+  'failure',
+  'cancel',
+  'confirm',
+  'accept',
+  'reject',
+  'approve',
+  'deny',
+  'allow',
+  'block',
+  'enable',
+  'disable',
+  'activate',
+  'deactivate',
+  'create',
+  'add',
+  'insert',
+  'update',
+  'edit',
+  'modify',
+  'change',
+  'delete',
+  'remove',
+  'clear',
+  'reset',
+  'refresh',
+  'reload',
+  'restore',
+  'save',
+  'export',
+  'import',
+  'sync',
+  'backup',
+  'copy',
+  'paste',
+  'cut',
+  'undo',
+  'redo',
+  'select',
+  'deselect',
+  'all',
+  'none',
+  'some',
+  'any',
+  'every',
+  'each',
+  'single',
+  'multiple',
+  'one',
+  'two',
+  'three',
+  'four',
+  'five',
+  'six',
+  'seven',
+  'eight',
+  'nine',
+  'ten',
+  'lisa',
+  'lydia',
+  'daniel',
+  'joseph',
+  'piya',
+  'david',
+  'angela',
+  'alen',
+  'garden',
+  'gardenspace',
+  'growdoro',
+  'growdoro-official',
+  'growdoro-official-account',
+  'growdoro-official-account-official',
+  'growdoro-official-account-official-account',
+];
+
+export async function POST(request: Request) {
+  try {
+    // Initialize InstantDB admin client
+    const appId = process.env.NEXT_PUBLIC_INSTANT_APP_ID || 'YOUR_APP_ID_HERE';
+    const adminToken = process.env.INSTANT_APP_ADMIN_TOKEN;
+
+    if (!adminToken) {
+      console.error('❌ INSTANT_APP_ADMIN_TOKEN is not set');
+      return NextResponse.json(
+        { error: 'Server configuration error' },
+        { status: 500 }
+      );
+    }
+
+    const db = init({
+      appId,
+      adminToken: adminToken
+    });
+
+    const { username, userId } = await request.json();
+
+    // Validate input
+    if (!username || typeof username !== 'string') {
+      return NextResponse.json(
+        { error: 'Username is required' },
+        { status: 400 }
+      );
+    }
+
+    if (!userId || typeof userId !== 'string') {
+      return NextResponse.json(
+        { error: 'User ID is required' },
+        { status: 400 }
+      );
+    }
+
+    // Validate username format
+    if (username.length < 3) {
+      return NextResponse.json(
+        { error: 'Username must be at least 3 characters' },
+        { status: 400 }
+      );
+    }
+
+    if (username.length > 20) {
+      return NextResponse.json(
+        { error: 'Username must be less than 20 characters' },
+        { status: 400 }
+      );
+    }
+
+    if (!/^[a-zA-Z0-9_]+$/.test(username)) {
+      return NextResponse.json(
+        { error: 'Username can only contain letters, numbers, and underscores' },
+        { status: 400 }
+      );
+    }
+
+    // Check if username is reserved or already taken
+    if (RESERVED_USERNAMES.includes(username.toLowerCase())) {
+      return NextResponse.json(
+        { error: 'Username is not available' },
+        { status: 400 }
+      );
+    }
+
+    // Check if username already exists
+    const existingProfile = await db.query({
+      profiles: {
+        $: {
+          where: {
+            username: username.toLowerCase()
+          }
+        }
+      }
+    });
+
+    if (existingProfile.profiles && existingProfile.profiles.length > 0) {
+      return NextResponse.json(
+        { error: 'Username is already taken' },
+        { status: 400 }
+      );
+    }
+
+    // Create the profile
+    const profileId = id();
+    
+    await db.transact(
+      db.tx.profiles[profileId].update({
+        username: username.toLowerCase(),
+        createdAt: Date.now(),
+      }).link({
+        user: userId
+      })
+    );
+
+    return NextResponse.json({
+      success: true,
+      profileId,
+      username: username.toLowerCase()
+    });
+
+  } catch (error) {
+    console.error('Error creating profile:', error);
+    return NextResponse.json(
+      { error: 'Failed to create profile' },
+      { status: 500 }
+    );
+  }
+} 

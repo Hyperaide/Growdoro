@@ -1,6 +1,7 @@
 'use client';
 
 import IsometricGarden from './components/IsometricGarden';
+import AuthButton from './components/AuthButton';
 
 export default function Home() {
   return (

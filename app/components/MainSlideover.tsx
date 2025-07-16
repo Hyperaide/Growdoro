@@ -1,5 +1,5 @@
 'use client'
-import { XIcon, TimerIcon, PlayIcon, PauseIcon, CheckIcon, PackageIcon, PlantIcon, FlowerLotusIcon, ListChecksIcon, ArrowsOutSimpleIcon, BellIcon } from "@phosphor-icons/react";
+import { XIcon, TimerIcon, PlayIcon, PauseIcon, CheckIcon, PackageIcon, PlantIcon, FlowerLotusIcon, ListChecksIcon, ArrowsOutSimpleIcon, BellIcon, SealCheckIcon, SparkleIcon } from "@phosphor-icons/react";
 import { motion, AnimatePresence } from "motion/react";
 import { useRef, useState, useEffect } from "react";
 import { db } from "../../lib/db";
@@ -8,6 +8,8 @@ import { BLOCK_TYPES, BlockTypeId } from "../constants/blocks";
 import PackOpeningModal from "./PackOpeningModal";
 import NumberFlow, { NumberFlowGroup } from '@number-flow/react'
 import posthog from "posthog-js";
+import { useAuth } from '../contexts/auth-context';
+import AuthButton from "./AuthButton";
 
 interface MainSlideoverProps {
   isOpen: boolean;
@@ -37,7 +39,7 @@ interface Block {
 
 // Get or create a browser session ID
 const getBrowserSessionId = () => {
-  const STORAGE_KEY = 'gardenspace_session_id';
+  const STORAGE_KEY = 'growdoro_session_id';
   let sessionId = localStorage.getItem(STORAGE_KEY);
   
   if (!sessionId) {
@@ -111,13 +113,16 @@ export default function MainSlideover({ isOpen, onClose, selectedBlockType, onSe
   const [remainingTime, setRemainingTime] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
   const [browserSessionId, setBrowserSessionId] = useState<string>('');
-  const [activeTab, setActiveTab] = useState<'timer' | 'sessions' | 'blocks' | 'packs' | 'help' | null>('timer');
+  const [activeTab, setActiveTab] = useState<'timer' | 'sessions' | 'blocks' | 'packs' | 'help' | 'supporter' | null>('timer');
   const [claimingReward, setClaimingReward] = useState(false);
   const [packOpeningRewards, setPackOpeningRewards] = useState<string[]>([]);
   const [showPackOpening, setShowPackOpening] = useState(false);
   const [pausedAt, setPausedAt] = useState<number | null>(null);
   const [totalPausedTime, setTotalPausedTime] = useState(0);
   const [notificationPermission, setNotificationPermission] = useState<NotificationPermission | null>(null);
+  
+  const { user, profile, sessionId } = useAuth();
+  const effectiveSessionId = user?.id || sessionId || browserSessionId;
   
   // Get browser session ID on mount
   useEffect(() => {
@@ -149,16 +154,19 @@ export default function MainSlideover({ isOpen, onClose, selectedBlockType, onSe
   }, [activeSession, isPaused, totalPausedTime]);
 
   // Query sessions and blocks for this browser session
-  const { data, isLoading } = db.useQuery(browserSessionId ? {
+  const { data, isLoading } = db.useQuery(effectiveSessionId ? {
     sessions: {
       $: {
-        where: { sessionId: browserSessionId }
+        where: { sessionId: effectiveSessionId }
       }
     },
     blocks: {
       $: {
-        where: { 
-          sessionId: browserSessionId,
+        where: user ? {
+          'user.id': user.id,
+          x: { $isNull: true } // Only unplaced blocks
+        } : {
+          sessionId: effectiveSessionId,
           x: { $isNull: true } // Only unplaced blocks
         }
       }
@@ -302,6 +310,12 @@ export default function MainSlideover({ isOpen, onClose, selectedBlockType, onSe
   }, [activeSession, remainingTime]);
 
   const startTimer = async () => {
+    // Check if authenticated user has a profile
+    if (user && !profile) {
+      alert('Please complete your profile setup first!');
+      return;
+    }
+    
     // Request notification permission when starting timer
     if ('Notification' in window && Notification.permission === 'default') {
       const permission = await Notification.requestPermission();
@@ -310,7 +324,7 @@ export default function MainSlideover({ isOpen, onClose, selectedBlockType, onSe
     
     const newSessionId = id();
     const newSession = {
-      sessionId: browserSessionId,
+      sessionId: effectiveSessionId,
       createdAt: Date.now(),
       timeInSeconds: timerMinutes * 60,
       paused: false
@@ -403,12 +417,21 @@ export default function MainSlideover({ isOpen, onClose, selectedBlockType, onSe
       setShowPackOpening(true);
       
       // Create the blocks
-      const blockTransactions = rewardBlocks.map((blockType) => 
-        db.tx.blocks[id()].update({
-          type: blockType,
-          sessionId: browserSessionId
-        })
-      );
+      const blockTransactions = rewardBlocks.map((blockType) => {
+        const blockId = id();
+        if (user) {
+          return db.tx.blocks[blockId].update({
+            type: blockType
+          }).link({
+            user: user.id
+          });
+        } else {
+          return db.tx.blocks[blockId].update({
+            type: blockType,
+            sessionId: effectiveSessionId
+          });
+        }
+      });
       
       posthog.capture('pack_opened', {
         pack_size: packSize,
@@ -486,10 +509,10 @@ export default function MainSlideover({ isOpen, onClose, selectedBlockType, onSe
           tabIndex={-1}
       >
         <div className="flex flex-col gap-2" style={{ height: '100%' }}>
-          <div className="flex flex-row justify-between items-start">
+          <div className="flex flex-row justify-between items-start font-barlow">
             <div className="flex flex-col p-2">
-              <h1 className="text-xs font-medium font-mono">{new Date(Date.now()).toLocaleTimeString()}</h1>
-              <p className="text-xs font-medium text-gray-500">{new Date(Date.now()).toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'long' }).replace(/(\d+)/, (match) => {
+              <h1 className="text-sm font-medium">{new Date(Date.now()).toLocaleTimeString()}</h1>
+              <p className="text-sm font-medium text-gray-500">{new Date(Date.now()).toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'long' }).replace(/(\d+)/, (match) => {
                 const day = parseInt(match);
                 const suffix = day === 1 || day === 21 || day === 31 ? 'st' :
                              day === 2 || day === 22 ? 'nd' :
@@ -498,8 +521,9 @@ export default function MainSlideover({ isOpen, onClose, selectedBlockType, onSe
               })}</p>
             </div>
 
+            <AuthButton />
             
-            {activeTab !== null && (
+            {/* {activeTab !== null && (
             <button
               onClick={() => setActiveTab(null as any)}
               className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
@@ -507,10 +531,10 @@ export default function MainSlideover({ isOpen, onClose, selectedBlockType, onSe
             >
               <ArrowsOutSimpleIcon size={14} weight="bold" className="text-gray-800" />
             </button>
-            )}
+            )} */}
           </div>
-          <div className="flex flex-row justify-between items-center">
-            <div className="flex flex-row items-center gap-2">
+          <div className="flex flex-row justify-between items-center ">
+            <div className="flex flex-row items-center gap-2 w-full">
               <button 
                 className={`flex flex-row items-center gap-1 px-2 py-1 rounded-lg transition-colors ${activeTab === 'timer' ? 'bg-gray-200' : 'bg-transparent hover:bg-gray-100'}`} 
                 onClick={() => setActiveTab('timer')}
@@ -556,6 +580,25 @@ export default function MainSlideover({ isOpen, onClose, selectedBlockType, onSe
               >
                 <h1 className="text-xs font-medium font-mono uppercase">Help</h1>
               </button>
+              {user && !profile?.supporter && (
+                <button 
+                  className={`flex flex-row items-center gap-1 px-2 py-1 rounded-lg transition-colors ${activeTab === 'supporter' ? 'bg-gray-200' : 'bg-transparent hover:bg-gray-100'}`} 
+                  onClick={() => setActiveTab('supporter')}
+                >
+                  <h1 className="text-xs font-medium font-mono uppercase">Supporter</h1>
+                </button>
+              )}
+              
+
+              {activeTab !== null && (
+                <button
+                  onClick={() => setActiveTab(null as any)}
+                  className="ml-auto p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                  aria-label="Collapse view"
+                >
+                  <ArrowsOutSimpleIcon size={14} weight="bold" className="text-gray-800" />
+                </button>
+                )}
             </div>
           </div>
 
@@ -607,7 +650,7 @@ export default function MainSlideover({ isOpen, onClose, selectedBlockType, onSe
                     <button
                       onClick={startTimer}
                       className=" bg-green-600 text-sm w-full text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center gap-2"
-                      disabled={!browserSessionId}
+                      disabled={!effectiveSessionId}
                     >
                       <PlayIcon size={12} weight="fill" />
                       Start Timer
@@ -1042,6 +1085,50 @@ export default function MainSlideover({ isOpen, onClose, selectedBlockType, onSe
                       </div>
                     </div>
                   </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Supporter Tab */}
+          {activeTab === 'supporter' && (
+            <div className="flex-1 overflow-y-auto p-2">
+              <div className="space-y-4">
+                <div className="rounded-lg gap-1 flex flex-col">
+                  <h3 className="font-semibold text-neutral-800 flex flex-row items-center gap-2 text-sm">
+                    <SparkleIcon size={16} weight="fill" className="text-green-600" />
+                    Free Forever
+                  </h3>
+                  <p className="text-neutral-600 text-xs">
+                    Growdoro will always be free to use. Enjoy unlimited pomodoro sessions and grow your infinite garden.
+                  </p>
+                </div>
+
+                <div className="">
+                  <h3 className="font-semibold text-neutral-800 mb-2 flex items-center gap-2 text-sm">
+                    <SealCheckIcon size={16} weight="fill" className="text-sky-600" />
+                    Become a Supporter
+                  </h3>
+                  <p className="text-neutral-600 text-xs mb-3">
+                    If you want to support Growdoro and unlock some exclusive stuff, you can become a supporter. It's <span className="font-semibold text-sky-600">$10 a year.</span>
+                  </p>
+                  <p className="text-neutral-600 text-xs mb-3">
+                    You get early access to new features, exclusive plants, 4 exclusive decorations blocks a year and a little badge on your profile ☺️
+                  </p>
+                </div>
+
+                <div className="mt-4">
+                  <a
+                    href="#"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      window.open(  `${process.env.NEXT_PUBLIC_STRIPE_PAYMENT_LINK}?client_reference_id=${profile?.id}`, '_blank');
+                    }}
+                    className="w-full text-xs flex flex-row items-center justify-center gap-2 font-medium text-center bg-sky-600 text-white px-4 py-3 rounded-lg hover:bg-sky-700 transition-colors"
+                  >
+                    <SealCheckIcon size={14} weight="fill" className="text-white" />
+                    Become a Supporter - $10/year
+                  </a>
                 </div>
               </div>
             </div>

@@ -1,6 +1,13 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono, Gowun_Batang, Tiny5, Barlow } from "next/font/google";
+import { Geist, Geist_Mono, Gowun_Batang, Tiny5, Barlow, Varela_Round } from "next/font/google";
 import "./globals.css";
+import AuthContextProvider from "./contexts/auth-context";
+
+const varelaRound = Varela_Round({
+  variable: "--font-varela-round",
+  subsets: ["latin"],
+  weight: ["400"],
+});
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -27,7 +34,7 @@ const tiny5 = Tiny5({
 const barlow = Barlow({
   variable: "--font-barlow",
   subsets: ["latin"],
-  weight: ["400", "700"],
+  weight: ["400", "500", "600", "700", "800", "900"],
 });
 
 export const metadata: Metadata = {
@@ -47,9 +54,11 @@ export default function RootLayout({
         <script async src="https://cdn.seline.com/seline.js" data-token="ebcbd75ffeaa20e"></script>
       </head>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} ${gowunBatang.variable} ${tiny5.variable} ${barlow.variable} antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable} ${gowunBatang.variable} ${tiny5.variable} ${barlow.variable} ${varelaRound.variable} antialiased`}
       >
-        {children}
+        <AuthContextProvider>
+          {children}
+        </AuthContextProvider>
 
         <div className="flex flex-col absolute bottom-4 left-4 pointer-events-none">
           <h1 className="text-lg md:text-2xl font-bold font-barlow uppercase text-black/20">Growdoro</h1>

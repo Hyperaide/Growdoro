@@ -1,16 +1,21 @@
-import { XIcon, TimerIcon, PlayIcon, PauseIcon, CheckIcon, PackageIcon, PlantIcon, FlowerLotusIcon } from "@phosphor-icons/react";
+'use client';
+
+import React, { useState, useEffect } from 'react';
+import { XIcon, ClockIcon, PlayIcon, PauseIcon, StopIcon, PackageIcon, HourglassIcon, HourglassHighIcon, HourglassLowIcon, HourglassMediumIcon, PlusIcon, MinusIcon, InfoIcon, FlowerLotusIcon, GithubLogoIcon, TwitterLogoIcon, RocketIcon } from '@phosphor-icons/react';
 import { motion } from "motion/react";
-import { useRef, useState, useEffect } from "react";
+import { useRef } from "react";
 import { db } from "../../lib/db";
 import { id } from "@instantdb/react";
 import { BLOCK_TYPES, BlockTypeId } from "../constants/blocks";
 import PackOpeningModal from "./PackOpeningModal";
+import { useAuth } from '../contexts/auth-context';
 
 interface DockProps {
   isOpen: boolean;
   onClose?: () => void;
   selectedBlockType?: string | null;
   onSelectBlockType?: (type: string | null) => void;
+  browserSessionId?: string;
 }
 
 interface Session {
@@ -34,7 +39,7 @@ interface Block {
 
 // Get or create a browser session ID
 const getBrowserSessionId = () => {
-  const STORAGE_KEY = 'gardenspace_session_id';
+  const STORAGE_KEY = 'growdoro_session_id';
   let sessionId = localStorage.getItem(STORAGE_KEY);
   
   if (!sessionId) {
@@ -101,8 +106,10 @@ const getRandomBlockTypes = (count: number): string[] => {
   return selected;
 };
 
-export default function Dock({ isOpen, onClose, selectedBlockType, onSelectBlockType }: DockProps) {
-  const mainSlideoverRef = useRef<HTMLDivElement>(null);
+export default function Dock({ isOpen, onClose, selectedBlockType, onSelectBlockType, browserSessionId: propSessionId }: DockProps) {
+    const mainSlideoverRef = useRef<HTMLDivElement>(null);
+    const { user, profile, sessionId } = useAuth();
+    const effectiveSessionId = user?.id || sessionId || propSessionId;
   const [timerMinutes, setTimerMinutes] = useState(25);
   const [activeSession, setActiveSession] = useState<Session | null>(null);
   const [remainingTime, setRemainingTime] = useState(0);
@@ -119,16 +126,19 @@ export default function Dock({ isOpen, onClose, selectedBlockType, onSelectBlock
   }, []);
   
   // Query sessions and blocks for this browser session
-  const { data, isLoading } = db.useQuery(browserSessionId ? {
+  const { data, isLoading } = db.useQuery(effectiveSessionId ? {
     sessions: {
       $: {
-        where: { sessionId: browserSessionId }
+        where: { sessionId: effectiveSessionId }
       }
     },
     blocks: {
       $: {
-        where: { 
-          sessionId: browserSessionId,
+        where: user ? {
+          'user.id': user.id,
+          x: { $isNull: true } // Only unplaced blocks
+        } : {
+          sessionId: effectiveSessionId,
           x: { $isNull: true } // Only unplaced blocks
         }
       }
@@ -199,16 +209,24 @@ export default function Dock({ isOpen, onClose, selectedBlockType, onSelectBlock
   }, [activeSession, isPaused]);
 
   const startTimer = async () => {
+    // Check if authenticated user has a profile
+    if (user && !profile) {
+      alert('Please complete your profile setup first!');
+      return;
+    }
+    
     const newSessionId = id();
     const newSession = {
-      sessionId: browserSessionId,
+      sessionId: effectiveSessionId,
       createdAt: Date.now(),
       timeInSeconds: timerMinutes * 60,
       paused: false
     };
 
     await db.transact(
-      db.tx.sessions[newSessionId].update(newSession)
+      user 
+        ? db.tx.sessions[newSessionId].update(newSession).link({ user: user.id })
+        : db.tx.sessions[newSessionId].update(newSession)
     );
 
     const createdSession = {
@@ -261,13 +279,18 @@ export default function Dock({ isOpen, onClose, selectedBlockType, onSelectBlock
       setPackOpeningRewards(rewardBlocks);
       setShowPackOpening(true);
       
-      // Create the blocks
-      const blockTransactions = rewardBlocks.map((blockType) => 
-        db.tx.blocks[id()].update({
+      // Create the blocks with user association if authenticated
+      const blockTransactions = rewardBlocks.map((blockType) => {
+        const blockId = id();
+        const blockData = {
           type: blockType,
-          sessionId: browserSessionId
-        })
-      );
+          sessionId: effectiveSessionId
+        };
+        
+        return user
+          ? db.tx.blocks[blockId].update(blockData).link({ user: user.id })
+          : db.tx.blocks[blockId].update(blockData);
+      });
       
       // Mark rewards as claimed
       await db.transact([
@@ -317,7 +340,7 @@ export default function Dock({ isOpen, onClose, selectedBlockType, onSelectBlock
           <div className="px-6 pb-6 flex-1 overflow-hidden flex flex-col">
             <div className="flex justify-between items-center mb-4">
               <h1 className="text-md font-semibold flex items-center gap-2">
-                <TimerIcon size={20} weight="fill" />
+                <ClockIcon size={20} weight="fill" />
                 Garden Timer
               </h1>
               {onClose && (
@@ -381,7 +404,7 @@ export default function Dock({ isOpen, onClose, selectedBlockType, onSelectBlock
                         <button
                           onClick={startTimer}
                           className="w-full bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center gap-2"
-                          disabled={!browserSessionId}
+                          disabled={!effectiveSessionId}
                         >
                           <PlayIcon size={16} weight="fill" />
                           Start Timer
@@ -405,7 +428,7 @@ export default function Dock({ isOpen, onClose, selectedBlockType, onSelectBlock
                           )}
                           {activeSession.rewardsClaimedAt && (
                             <div className="text-sm text-green-600 mt-2 flex items-center justify-center gap-1">
-                              <CheckIcon size={16} weight="bold" />
+                              <InfoIcon size={16} weight="bold" />
                               Rewards Claimed!
                             </div>
                           )}
@@ -481,7 +504,7 @@ export default function Dock({ isOpen, onClose, selectedBlockType, onSelectBlock
                                   <PackageIcon size={14} weight="fill" className="text-yellow-600" />
                                 )}
                                 {session.completedAt && (
-                                  <CheckIcon size={14} weight="bold" className="text-green-600" />
+                                  <InfoIcon size={14} weight="bold" className="text-green-600" />
                                 )}
                                 {session.paused && !session.completedAt && (
                                   <PauseIcon size={14} weight="fill" className="text-orange-600" />
