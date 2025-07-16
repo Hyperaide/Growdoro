@@ -51,7 +51,6 @@ export default function RootLayout({
     <html lang="en" className="bg-sky-100">
       <head>
         <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-        <script async src="https://cdn.seline.com/seline.js" data-token="ebcbd75ffeaa20e"></script>
       </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} ${gowunBatang.variable} ${tiny5.variable} ${barlow.variable} ${varelaRound.variable} antialiased`}

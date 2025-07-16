@@ -59,7 +59,6 @@ const IsometricGarden: React.FC = () => {
   // Mobile instructions state
   const [showMobileInstructions, setShowMobileInstructions] = useState(false);
   const [hasSeenInstructions, setHasSeenInstructions] = useState(false);
-  const [hasCreatedDefaultBlocks, setHasCreatedDefaultBlocks] = useState(false);
 
   // Real-time query for blocks
   const { data } = db.useQuery({
@@ -106,50 +105,63 @@ const IsometricGarden: React.FC = () => {
         }));
 
       setBlocks(loadedBlocks);
-    } else if (!hasCreatedDefaultBlocks) {
-      // New user - create default 2x2 grass blocks (only once)
-      setHasCreatedDefaultBlocks(true);
-      
-      const positions = [
-        { x: 0, y: 0 },
-        { x: 1, y: 0 },
-        { x: 0, y: 1 },
-        { x: 1, y: 1 }
-      ];
+    } else {
+      // Check if ANY blocks exist for this session (placed or unplaced)
+      db.queryOnce({
+        blocks: {
+          $: {
+            where: user ? {
+              'user.id': user.id
+            } : {
+              sessionId: effectiveSessionId
+            },
+            limit: 1
+          }
+        }
+      }).then(({ data: checkData }) => {
+        // Only create default blocks if NO blocks exist at all for this session
+        if (!checkData?.blocks?.length) {
+          const positions = [
+            { x: 0, y: 0 },
+            { x: 1, y: 0 },
+            { x: 0, y: 1 },
+            { x: 1, y: 1 }
+          ];
 
-      // Create blocks in database
-      const transactions = positions.map(pos => {
-        const blockId = id();
-        const now = new Date().toISOString();
+          // Create blocks in database
+          const transactions = positions.map(pos => {
+            const blockId = id();
+            const now = DateTime.now().toISO()
 
-        if (user) {
-          return db.tx.blocks[blockId].update({
-            x: pos.x,
-            y: pos.y,
-            z: 0,
-            type: 'dirt',
-            plantedAt: now
-          }).link({
-            user: user.id
+            if (user) {
+              return db.tx.blocks[blockId].update({
+                x: pos.x,
+                y: pos.y,
+                z: 0,
+                type: 'dirt',
+                plantedAt: now
+              }).link({
+                user: user.id
+              });
+            } else {
+              return db.tx.blocks[blockId].update({
+                x: pos.x,
+                y: pos.y,
+                z: 0,
+                type: 'dirt',
+                plantedAt: now,
+                sessionId: effectiveSessionId
+              });
+            }
           });
-        } else {
-          return db.tx.blocks[blockId].update({
-            x: pos.x,
-            y: pos.y,
-            z: 0,
-            type: 'dirt',
-            plantedAt: now,
-            sessionId: effectiveSessionId
+
+          db.transact(transactions).catch(error => {
+            console.error('Failed to create default blocks:', error);
           });
         }
       });
-
-      db.transact(transactions).catch(error => {
-        console.error('Failed to create default blocks:', error);
-        setHasCreatedDefaultBlocks(false); // Allow retry on error
-      });
     }
-  }, [data?.blocks, effectiveSessionId, user, hasCreatedDefaultBlocks]);
+  }, [data?.blocks, effectiveSessionId, user]);
 
   // Preload block images
   useEffect(() => {
