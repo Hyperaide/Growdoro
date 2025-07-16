@@ -11,6 +11,8 @@ import { XIcon } from '@phosphor-icons/react';
 import { DateTime } from 'luxon';
 import Dock from './Dock';
 import posthog from 'posthog-js';
+import { useAuth } from '../contexts/auth-context';
+import AuthButton from './AuthButton';
 
 interface Block {
   id: string;
@@ -43,7 +45,10 @@ const IsometricGarden: React.FC = () => {
   const [isSlideoverOpen, setIsSlideoverOpen] = useState(false);
   const [isMainSlideoverOpen, setIsMainSlideoverOpen] = useState(true);
   const [selectedInventoryBlock, setSelectedInventoryBlock] = useState<string | null>(null);
-  const [browserSessionId, setBrowserSessionId] = useState<string>('');
+  
+  // Use auth context for session management
+  const { user, sessionId } = useAuth();
+  const effectiveSessionId = user?.id || sessionId;
 
   // Touch handling state
   const [touchStartDistance, setTouchStartDistance] = useState<number | null>(null);
@@ -54,108 +59,94 @@ const IsometricGarden: React.FC = () => {
   // Mobile instructions state
   const [showMobileInstructions, setShowMobileInstructions] = useState(false);
   const [hasSeenInstructions, setHasSeenInstructions] = useState(false);
+  const [hasCreatedDefaultBlocks, setHasCreatedDefaultBlocks] = useState(false);
 
-  // Get browser session ID on mount
+  // Real-time query for blocks
+  const { data } = db.useQuery({
+    blocks: effectiveSessionId ? {
+      $: {
+        where: user ? {
+          'user.id': user.id
+        } : {
+          sessionId: effectiveSessionId
+        }
+      }
+    } : {}
+  });
+
+  // Check if user has seen mobile instructions
   useEffect(() => {
-    const STORAGE_KEY = 'gardenspace_session_id';
-    let sessionId = localStorage.getItem(STORAGE_KEY);
-    
-    if (!sessionId) {
-      sessionId = id();
-      localStorage.setItem(STORAGE_KEY, sessionId);
-    }
-    
-    setBrowserSessionId(sessionId);
-
-    // Check if user has seen mobile instructions
-    const instructionsSeen = localStorage.getItem('gardenspace_mobile_instructions_seen');
+    const instructionsSeen = localStorage.getItem('growdoro_mobile_instructions_seen');
     if (!instructionsSeen && 'ontouchstart' in window) {
       setShowMobileInstructions(true);
     }
     setHasSeenInstructions(!!instructionsSeen);
   }, []);
 
-  // Load blocks from database on initial load
+  // Update blocks from real-time data
   useEffect(() => {
-    if (!browserSessionId) return;
+    if (!effectiveSessionId || !data?.blocks) return;
 
-    const loadBlocks = async () => {
-      try {
-        // Query for all blocks belonging to this session
-        const { data } = await db.queryOnce({
-          blocks: {
-            $: {
-              where: {
-                sessionId: browserSessionId
-              }
-            }
-          }
-        });
+    if (data.blocks.length > 0) {
+      // Filter for blocks that have been placed (have x, y coordinates)
+      // and convert database blocks to our local Block format
+      const loadedBlocks: Block[] = data.blocks
+        .filter(dbBlock => dbBlock.x !== null && dbBlock.x !== undefined && 
+                           dbBlock.y !== null && dbBlock.y !== undefined)
+        .map(dbBlock => ({
+          id: dbBlock.id,
+          x: dbBlock.x!,
+          y: dbBlock.y!,
+          z: dbBlock.z || 0,
+          type: dbBlock.type as BlockTypeId,
+          // Don't set placedAt for loaded blocks to avoid animation
+          placedAt: undefined,
+          // Include plantedAt if it exists (parse ISO string to timestamp)
+          plantedAt: dbBlock.plantedAt ? new Date(dbBlock.plantedAt).getTime() : undefined
+        }));
 
-        if (data?.blocks && data.blocks.length > 0) {
-          // Filter for blocks that have been placed (have x, y coordinates)
-          // and convert database blocks to our local Block format
-          const loadedBlocks: Block[] = data.blocks
-            .filter(dbBlock => dbBlock.x !== null && dbBlock.x !== undefined && 
-                               dbBlock.y !== null && dbBlock.y !== undefined)
-            .map(dbBlock => ({
-              id: dbBlock.id,
-              x: dbBlock.x!,
-              y: dbBlock.y!,
-              z: dbBlock.z || 0,
-              type: dbBlock.type as BlockTypeId,
-              // Don't set placedAt for loaded blocks to avoid animation
-              placedAt: undefined,
-              // Include plantedAt if it exists (parse ISO string to timestamp)
-              plantedAt: dbBlock.plantedAt ? new Date(dbBlock.plantedAt).getTime() : undefined
-            }));
+      setBlocks(loadedBlocks);
+    } else if (!hasCreatedDefaultBlocks) {
+      // New user - create default 2x2 grass blocks (only once)
+      setHasCreatedDefaultBlocks(true);
+      
+      const positions = [
+        { x: 0, y: 0 },
+        { x: 1, y: 0 },
+        { x: 0, y: 1 },
+        { x: 1, y: 1 }
+      ];
 
-          setBlocks(loadedBlocks);
-        } else {
-          // New user - create default 2x2 grass blocks
-          const defaultBlocks: Block[] = [];
-          const positions = [
-            { x: 0, y: 0 },
-            { x: 1, y: 0 },
-            { x: 0, y: 1 },
-            { x: 1, y: 1 }
-          ];
+      // Create blocks in database
+      const transactions = positions.map(pos => {
+        const blockId = id();
 
-          // Create blocks in database and local state
-          const transactions = positions.map(pos => {
-            const blockId = id();
-            defaultBlocks.push({
-              id: blockId,
-              x: pos.x,
-              y: pos.y,
-              z: 0,
-              type: 'dirt',
-              placedAt: undefined // No animation for initial blocks
-            });
-
-            return db.tx.blocks[blockId].update({
-              x: pos.x,
-              y: pos.y,
-              z: 0,
-              type: 'dirt',
-              sessionId: browserSessionId
-            });
+        if (user) {
+          return db.tx.blocks[blockId].update({
+            x: pos.x,
+            y: pos.y,
+            z: 0,
+            type: 'dirt'
+          }).link({
+            user: user.id
           });
-
-          try {
-            await db.transact(transactions);
-            setBlocks(defaultBlocks);
-          } catch (error) {
-            console.error('Failed to create default blocks:', error);
-          }
+        } else {
+          return db.tx.blocks[blockId].update({
+            x: pos.x,
+            y: pos.y,
+            z: 0,
+            type: 'dirt',
+            sessionId: effectiveSessionId
+          });
         }
-      } catch (error) {
-        console.error('Failed to load blocks from database:', error);
-      }
-    };
+      });
 
-    loadBlocks();
-  }, [browserSessionId]);
+      db.transact(transactions).catch(error => {
+        console.error('Failed to create default blocks:', error);
+        setHasCreatedDefaultBlocks(false); // Allow retry on error
+      });
+    }
+  }, [data?.blocks, effectiveSessionId, user, hasCreatedDefaultBlocks]);
 
   // Preload block images
   useEffect(() => {
@@ -532,14 +523,18 @@ const IsometricGarden: React.FC = () => {
   };
 
   const handlePlaceBlockFromInventory = async (x: number, y: number) => {
-    if (!selectedInventoryBlock || !browserSessionId) return;
+    if (!selectedInventoryBlock || !effectiveSessionId) return;
 
     // Query for an unplaced block of this type
     const { data } = await db.queryOnce({
       blocks: {
         $: {
-          where: {
-            sessionId: browserSessionId,
+          where: user ? {
+            'user.id': user.id,
+            type: selectedInventoryBlock,
+            x: { $isNull: true }
+          } : {
+            sessionId: effectiveSessionId,
             type: selectedInventoryBlock,
             x: { $isNull: true }
           },
@@ -577,7 +572,7 @@ const IsometricGarden: React.FC = () => {
 
     posthog.capture('block_placed', {
       block_id: unplacedBlock.id,
-      session_id: browserSessionId,
+      session_id: effectiveSessionId,
       block_type: selectedInventoryBlock
     })
 
@@ -601,7 +596,7 @@ const IsometricGarden: React.FC = () => {
       blocks: {
         $: {
           where: {
-            sessionId: browserSessionId,
+            sessionId: effectiveSessionId,
             type: selectedInventoryBlock,
             x: { $isNull: true }
           },
@@ -980,7 +975,7 @@ const IsometricGarden: React.FC = () => {
             <button
               onClick={() => {
                 setShowMobileInstructions(false);
-                localStorage.setItem('gardenspace_mobile_instructions_seen', 'true');
+                localStorage.setItem('growdoro_mobile_instructions_seen', 'true');
               }}
               className="mt-6 w-full bg-green-500 text-white py-2 px-4 rounded-lg font-medium hover:bg-green-600 transition-colors"
             >

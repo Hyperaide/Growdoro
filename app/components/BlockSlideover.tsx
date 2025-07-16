@@ -114,7 +114,7 @@ export default function BlockSlideover({ block, isOpen, onClose, onUpdateBlock }
                   }
                   return (
                     <div 
-                      className="h-full bg-gradient-to-r from-green-500 to-gray-100 rounded-full" 
+                      className="h-full bg-gradient-to-l from-green-500 to-gray-100 rounded-full" 
                       style={{ width: `${growthPercentage}%` }}
                     ></div>
                   );
