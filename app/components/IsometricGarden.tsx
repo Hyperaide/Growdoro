@@ -120,13 +120,15 @@ const IsometricGarden: React.FC = () => {
       // Create blocks in database
       const transactions = positions.map(pos => {
         const blockId = id();
+        const now = new Date().toISOString();
 
         if (user) {
           return db.tx.blocks[blockId].update({
             x: pos.x,
             y: pos.y,
             z: 0,
-            type: 'dirt'
+            type: 'dirt',
+            plantedAt: now
           }).link({
             user: user.id
           });
@@ -136,6 +138,7 @@ const IsometricGarden: React.FC = () => {
             y: pos.y,
             z: 0,
             type: 'dirt',
+            plantedAt: now,
             sessionId: effectiveSessionId
           });
         }
@@ -561,8 +564,8 @@ const IsometricGarden: React.FC = () => {
       z: 0
     };
     
-    // If it's a plant being placed for the first time, set plantedAt
-    if (blockType && blockType.category === 'plant' && !unplacedBlock.plantedAt) {
+    // Set plantedAt for all blocks when placed for the first time
+    if (!unplacedBlock.plantedAt) {
       updateData.plantedAt = new Date(now).toISOString();
     }
     
@@ -584,8 +587,8 @@ const IsometricGarden: React.FC = () => {
       z: 0,
       type: selectedInventoryBlock as BlockTypeId,
       placedAt: now,
-      // If it's a plant being placed for the first time, set plantedAt to now
-      plantedAt: blockType && blockType.category === 'plant' && !unplacedBlock.plantedAt 
+      // Set plantedAt for all blocks when placed for the first time
+      plantedAt: !unplacedBlock.plantedAt 
         ? now 
         : unplacedBlock.plantedAt ? new Date(unplacedBlock.plantedAt).getTime() : undefined
     };
