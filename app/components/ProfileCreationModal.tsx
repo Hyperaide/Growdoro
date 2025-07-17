@@ -148,11 +148,6 @@ export default function ProfileCreationModal({ isOpen, onClose, userId }: Profil
                 setError(result.error || 'Failed to create profile');
                 setIsCreating(false);
 
-                posthog.identify(
-									user.id,
-									{ email: user.email, username: username }
-                );
-
                 return;
             }
 

@@ -6,6 +6,7 @@ import { id } from '@instantdb/react';
 import { GoogleOAuthProvider, GoogleLogin } from '@react-oauth/google';
 import ProfileCreationModal from '../components/ProfileCreationModal';
 import LoginModal from '../components/LoginModal';
+import posthog from 'posthog-js';
 
 interface AuthContextType {
     user: any;
@@ -40,6 +41,7 @@ function AuthContextProviderInner({ children }: { children: React.ReactNode }) {
     const [sessionId, setSessionId] = useState('');
     const [showProfileCreation, setShowProfileCreation] = useState(false);
     const [showLoginModal, setShowLoginModal] = useState(false);
+    const [isIdentified, setIsIdentified] = useState(false);
     const { isLoading, user, error } = db.useAuth();
     
     // Query for user profile
@@ -56,6 +58,14 @@ function AuthContextProviderInner({ children }: { children: React.ReactNode }) {
     );
     
     const profile = profileData?.profiles?.[0] || null;
+
+    if(user && profile && !isIdentified) {
+        posthog.identify(
+            user.id,
+            { email: user.email, username: profile.username }
+        );
+        setIsIdentified(true);
+    }
 
     // Initialize session ID (for non-authenticated users)
     useEffect(() => {
