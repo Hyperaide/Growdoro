@@ -172,7 +172,7 @@ export default function MainSlideover({ isOpen, onClose, selectedBlockType, onSe
     const sessionStartedAt = session.createdAt;
     const now = Date.now();
     const timeElapsed = now - sessionStartedAt;
-    return (timeElapsed >= sessionDuration) && !session.timeRemaining
+    return (timeElapsed >= sessionDuration) && !session.timeRemaining && !session.paused
   }
 
   const sessionsWithUnclaimedRewards = sessions.filter(session => sessionCompleted(session) && !session.rewardsClaimedAt);
