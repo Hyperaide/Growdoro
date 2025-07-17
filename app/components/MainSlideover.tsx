@@ -26,6 +26,7 @@ interface Session {
   paused?: boolean;
   completedAt?: string | number;
   rewardsClaimedAt?: string | number;
+  timeRemaining?: number;
 }
 
 interface Block {
@@ -117,9 +118,8 @@ export default function MainSlideover({ isOpen, onClose, selectedBlockType, onSe
   const [claimingReward, setClaimingReward] = useState(false);
   const [packOpeningRewards, setPackOpeningRewards] = useState<string[]>([]);
   const [showPackOpening, setShowPackOpening] = useState(false);
-  const [pausedAt, setPausedAt] = useState<number | null>(null);
-  const [totalPausedTime, setTotalPausedTime] = useState(0);
   const [notificationPermission, setNotificationPermission] = useState<NotificationPermission | null>(null);
+  const [pausedAt, setPausedAt] = useState<number | null>(null);
   
   const { user, profile, sessionId } = useAuth();
   const effectiveSessionId = user?.id || sessionId || browserSessionId;
@@ -136,28 +136,17 @@ export default function MainSlideover({ isOpen, onClose, selectedBlockType, onSe
     }
   }, []);
   
-  // Handle tab visibility changes
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible' && activeSession && !isPaused && !activeSession.completedAt) {
-        // When returning to the tab, immediately recalculate the remaining time
-        const now = Date.now();
-        const totalElapsed = now - activeSession.createdAt - totalPausedTime;
-        const elapsedSeconds = Math.floor(totalElapsed / 1000);
-        const remaining = Math.max(0, activeSession.timeInSeconds - elapsedSeconds);
-        setRemainingTime(remaining);
-      }
-    };
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [activeSession, isPaused, totalPausedTime]);
+  // Handle tab visibility changes - removed since we're using a simpler countdown approach
 
   // Query sessions and blocks for this browser session
   const { data, isLoading } = db.useQuery(effectiveSessionId ? {
     sessions: {
       $: {
-        where: { sessionId: effectiveSessionId }
+        where: user ? {
+          'user.id': user.id
+        } : {
+          sessionId: effectiveSessionId
+        }
       }
     },
     blocks: {
@@ -191,18 +180,27 @@ export default function MainSlideover({ isOpen, onClose, selectedBlockType, onSe
 
     // Find the latest session that's not completed and not paused
     const latestActive = sessions
-      .filter(s => !s.completedAt && !s.paused)
+      .filter(s => !s.completedAt)
       .sort((a, b) => b.createdAt - a.createdAt)[0];
 
     if (latestActive) {
-      // Calculate remaining time based on when it was created
-      const elapsed = Math.floor((Date.now() - latestActive.createdAt) / 1000);
-      const remaining = Math.max(0, latestActive.timeInSeconds - elapsed);
+      // If the session has a stored timeRemaining (was paused), use that
+      // Otherwise calculate remaining time based on when it was created
+      let remaining;
+      
+      if (latestActive.timeRemaining !== undefined && latestActive.timeRemaining !== null) {
+        // Use the stored timeRemaining from when it was paused
+        remaining = latestActive.timeRemaining;
+      } else {
+        // Calculate remaining time based on elapsed time
+        const elapsed = Math.floor((Date.now() - latestActive.createdAt) / 1000);
+        remaining = Math.max(0, latestActive.timeInSeconds - elapsed);
+      }
       
       if (remaining > 0) {
         setActiveSession(latestActive);
         setRemainingTime(remaining);
-        setIsPaused(false);
+        setIsPaused(latestActive.paused || false);
       } else {
         // Timer has expired while the page was closed, mark it as completed
         db.transact(
@@ -216,24 +214,14 @@ export default function MainSlideover({ isOpen, onClose, selectedBlockType, onSe
 
   // Timer effect
   useEffect(() => {
-    if (!activeSession || activeSession.completedAt) return;
+    if (!activeSession || activeSession.completedAt || isPaused) return;
 
     const interval = setInterval(() => {
-      if (isPaused) {
-        // Don't update timer when paused
-        return;
-      }
-      
-      // Calculate remaining time based on actual elapsed time
-      const now = Date.now();
-      const totalElapsed = now - activeSession.createdAt - totalPausedTime;
-      const elapsedSeconds = Math.floor(totalElapsed / 1000);
-      const remaining = Math.max(0, activeSession.timeInSeconds - elapsedSeconds);
-      setRemainingTime(remaining);
-    }, 100); // Update more frequently for smoother countdown
+      setRemainingTime(prev => Math.max(0, prev - 1)); // Decrement by 1 second
+    }, 1000); // Update every second
 
     return () => clearInterval(interval);
-  }, [activeSession, isPaused, totalPausedTime]);
+  }, [activeSession, isPaused]);
 
   // Update document title with timer
   useEffect(() => {
@@ -330,9 +318,18 @@ export default function MainSlideover({ isOpen, onClose, selectedBlockType, onSe
       paused: false
     };
 
-    await db.transact(
-      db.tx.sessions[newSessionId].update(newSession)
-    );
+    // Create session with user link if authenticated
+    if (user) {
+      await db.transact(
+        db.tx.sessions[newSessionId].update(newSession).link({
+          user: user.id
+        })
+      );
+    } else {
+      await db.transact(
+        db.tx.sessions[newSessionId].update(newSession)
+      );
+    }
 
     posthog.capture('timer_session_started', {
       session_id: newSessionId,
@@ -347,8 +344,6 @@ export default function MainSlideover({ isOpen, onClose, selectedBlockType, onSe
     setActiveSession(createdSession);
     setRemainingTime(timerMinutes * 60);
     setIsPaused(false);
-    setPausedAt(null);
-    setTotalPausedTime(0);
   };
 
   const pauseTimer = () => {
@@ -356,24 +351,23 @@ export default function MainSlideover({ isOpen, onClose, selectedBlockType, onSe
     
     if (!isPaused) {
       // Pausing the timer
-      setPausedAt(Date.now());
       setIsPaused(true);
+      setPausedAt(Date.now());
       db.transact(
         db.tx.sessions[activeSession.id].update({
-          paused: true
+          paused: true,
+          timeRemaining: Math.round(remainingTime) // Store as integer seconds
         })
       );
     } else {
       // Resuming the timer
-      if (pausedAt) {
-        const pauseDuration = Date.now() - pausedAt;
-        setTotalPausedTime(prev => prev + pauseDuration);
-        setPausedAt(null);
-      }
       setIsPaused(false);
+      setPausedAt(null);
+      // Update the session to clear the paused state
       db.transact(
         db.tx.sessions[activeSession.id].update({
-          paused: false
+          paused: false,
+          timeRemaining: null
         })
       );
     }
@@ -383,8 +377,6 @@ export default function MainSlideover({ isOpen, onClose, selectedBlockType, onSe
     setActiveSession(null);
     setRemainingTime(0);
     setIsPaused(false);
-    setPausedAt(null);
-    setTotalPausedTime(0);
 
     if (activeSession) {
       db.transact(
@@ -474,7 +466,7 @@ export default function MainSlideover({ isOpen, onClose, selectedBlockType, onSe
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
+    const secs = Math.floor(seconds % 60); // Use Math.floor to ensure integer
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
@@ -708,7 +700,7 @@ export default function MainSlideover({ isOpen, onClose, selectedBlockType, onSe
                                 <NumberFlow
                                   prefix=":"
                                   trend={-1}
-                                  value={remainingTime % 60}
+                                  value={Math.floor(remainingTime % 60)}
                                   digits={{ 1: { max: 5 } }}
                                   format={{ minimumIntegerDigits: 2 }}
                                 />

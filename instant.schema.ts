@@ -32,6 +32,7 @@ const _schema = i.schema({
       sessionId: i.string().optional().indexed(),
       createdAt: i.number(),
       timeInSeconds: i.number(),
+      timeRemaining: i.number().optional(),
       paused: i.boolean().optional(),
       completedAt: i.date().optional(),
       rewardsClaimedAt: i.date().optional(),
