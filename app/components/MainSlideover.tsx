@@ -165,6 +165,18 @@ export default function MainSlideover({ isOpen, onClose, selectedBlockType, onSe
   const sessions = data?.sessions || [];
   const unplacedBlocks = data?.blocks || [];
 
+
+  const sessionCompleted = (session: Session) => {
+    // check if time from when it was started to now is greater than the session duration
+    const sessionDuration = session.timeInSeconds;
+    const sessionStartedAt = session.createdAt;
+    const now = Date.now();
+    const timeElapsed = now - sessionStartedAt;
+    return (timeElapsed >= sessionDuration) && !session.timeRemaining
+  }
+
+  const sessionsWithUnclaimedRewards = sessions.filter(session => sessionCompleted(session) && !session.rewardsClaimedAt);
+
   // Group blocks by type
   const blockInventory = unplacedBlocks.reduce((acc, block) => {
     if (!acc[block.type]) {
@@ -839,7 +851,7 @@ export default function MainSlideover({ isOpen, onClose, selectedBlockType, onSe
                 <div className="text-sm text-gray-500">Loading packs...</div>
               ) : (
                 <>
-                  {sessions.filter(s => s.completedAt && !s.rewardsClaimedAt).length === 0 ? (
+                  {sessionsWithUnclaimedRewards.length === 0 ? (
                     <div className="text-sm text-gray-500 text-center py-8">
                       <PackageIcon size={24} className="mx-auto mb-2 text-gray-400" />
                       <p>No packs to open!</p>
@@ -847,8 +859,7 @@ export default function MainSlideover({ isOpen, onClose, selectedBlockType, onSe
                     </div>
                   ) : (
                     <div className="grid grid-cols-2 gap-2">
-                      {sessions
-                        .filter(s => s.completedAt && !s.rewardsClaimedAt)
+                      {sessionsWithUnclaimedRewards
                         .sort((a, b) => b.createdAt - a.createdAt)
                         .map((session) => {
                           const minutes = Math.floor(session.timeInSeconds / 60);
