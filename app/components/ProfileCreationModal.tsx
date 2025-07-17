@@ -3,6 +3,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { UserIcon, SparkleIcon, ArrowRightIcon, CheckCircleIcon, XCircleIcon, CircleNotchIcon, SealCheckIcon } from '@phosphor-icons/react';
 import { motion, AnimatePresence } from 'motion/react';
+import posthog from 'posthog-js';
+import { useAuth } from '@/app/contexts/auth-context';
 
 interface ProfileCreationModalProps {
     isOpen: boolean;
@@ -19,6 +21,7 @@ export default function ProfileCreationModal({ isOpen, onClose, userId }: Profil
     const [isUsernameAvailable, setIsUsernameAvailable] = useState<boolean | null>(null);
     const [checkTimer, setCheckTimer] = useState<NodeJS.Timeout | null>(null);
     const [profileId, setProfileId] = useState<string | null>(null);
+    const { user } = useAuth();
 
     // Debounced username availability check
     const checkUsernameAvailability = useCallback(async (usernameToCheck: string) => {
@@ -144,6 +147,12 @@ export default function ProfileCreationModal({ isOpen, onClose, userId }: Profil
             if (!response.ok) {
                 setError(result.error || 'Failed to create profile');
                 setIsCreating(false);
+
+                posthog.identify(
+									user.id,
+									{ email: user.email, username: username }
+                );
+
                 return;
             }
 
