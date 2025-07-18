@@ -1,5 +1,5 @@
 'use client'
-import { XIcon, TimerIcon, PlayIcon, PauseIcon, CheckIcon, PackageIcon, PlantIcon, FlowerLotusIcon, ListChecksIcon, ArrowsOutSimpleIcon, BellIcon, SealCheckIcon, SparkleIcon } from "@phosphor-icons/react";
+import { XIcon, TimerIcon, PlayIcon, PauseIcon, CheckIcon, PackageIcon, PlantIcon, FlowerLotusIcon, ListChecksIcon, ArrowsOutSimpleIcon, BellIcon, SealCheckIcon, SparkleIcon, CircleNotchIcon } from "@phosphor-icons/react";
 import { motion, AnimatePresence } from "motion/react";
 import { useRef, useState, useEffect, useMemo, useCallback, memo } from "react";
 import { db } from "../../lib/db";
@@ -40,7 +40,7 @@ interface Block {
 }
 
 // Get or create a browser session ID
-const getBrowserSessionId = () => {
+const getBrowserSessionId = (): string => {
   const STORAGE_KEY = 'gardenspace_session_id';
   let sessionId = localStorage.getItem(STORAGE_KEY);
   
@@ -52,61 +52,7 @@ const getBrowserSessionId = () => {
   return sessionId;
 };
 
-// Get random block types for rewards (ensuring at least one plant)
-const getRandomBlockTypes = (count: number): string[] => {
-  const allBlockIds = Object.keys(BLOCK_TYPES);
-  const plantIds = allBlockIds.filter(id => BLOCK_TYPES[id as BlockTypeId].category === 'plant');
-  const selected: string[] = [];
-  
-  // Rarity weights (must sum to 100)
-  const rarityWeights = {
-    common: 60,
-    uncommon: 30,
-    rare: 8,
-    legendary: 2
-  };
-  
-  // Get a random block based on rarity weights
-  const getWeightedRandomBlock = (): string => {
-    const random = Math.random() * 100;
-    let cumulativeWeight = 0;
-    
-    for (const [rarity, weight] of Object.entries(rarityWeights)) {
-      cumulativeWeight += weight;
-      if (random < cumulativeWeight) {
-        // Get all blocks of this rarity
-        const blocksOfRarity = allBlockIds.filter(
-          id => BLOCK_TYPES[id as BlockTypeId].rarity === rarity
-        );
-        if (blocksOfRarity.length > 0) {
-          return blocksOfRarity[Math.floor(Math.random() * blocksOfRarity.length)];
-        }
-      }
-    }
-    
-    // Fallback to any random block
-    return allBlockIds[Math.floor(Math.random() * allBlockIds.length)];
-  };
-  
-  // Ensure at least one plant
-  if (plantIds.length > 0 && count > 0) {
-    const randomPlantIndex = Math.floor(Math.random() * plantIds.length);
-    selected.push(plantIds[randomPlantIndex]);
-  }
-  
-  // Fill the rest with weighted random blocks
-  for (let i = selected.length; i < count; i++) {
-    selected.push(getWeightedRandomBlock());
-  }
-  
-  // Shuffle the array to randomize plant position
-  for (let i = selected.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [selected[i], selected[j]] = [selected[j], selected[i]];
-  }
-  
-  return selected;
-};
+
 
 // Memoized timer display component
 const TimerDisplay = memo(({ remainingTime }: { remainingTime: number }) => {
@@ -453,57 +399,44 @@ export default function MainSlideover({ isOpen, onClose, selectedBlockType, onSe
     setClaimingReward(true);
     
     try {
-      // Determine pack size based on session duration
-      let packSize = 3; // Default for < 30 mins
-      const minutes = Math.floor(session.timeInSeconds / 60);
-      
-      if (minutes >= 60) {
-        packSize = 6; // 1 hour or more
-      } else if (minutes >= 30) {
-        packSize = 3; // Still 3 for 30-59 minutes
+      // Call the server-side pack creation API
+      const response = await fetch('/api/claim-pack', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          sessionId: session.id,
+          userId: user?.id,
+          sessionDuration: session.timeInSeconds,
+          sessionIdFallback: effectiveSessionId
+        })
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to claim pack');
       }
+
+      const result = await response.json();
       
-      // Get random block types
-      const rewardBlocks = getRandomBlockTypes(packSize);
-      
-      // Show pack opening animation
-      setPackOpeningRewards(rewardBlocks);
+      // Show pack opening animation with the server-generated rewards
+      setPackOpeningRewards(result.rewardBlocks);
       setShowPackOpening(true);
       
-      // Create the blocks
-      const blockTransactions = rewardBlocks.map((blockType) => {
-        const blockId = id();
-        if (user) {
-          return db.tx.blocks[blockId].update({
-            type: blockType
-          }).link({
-            user: user.id
-          });
-        } else {
-          return db.tx.blocks[blockId].update({
-            type: blockType,
-            sessionId: effectiveSessionId
-          });
-        }
-      });
-      
       posthog.capture('pack_opened', {
-        pack_size: packSize,
+        pack_size: result.packSize,
         session_id: session.id
       })
-
-      // Mark rewards as claimed
-      await db.transact([
-        db.tx.sessions[session.id].update({
-          rewardsClaimedAt: Date.now()
-        }),
-        ...blockTransactions
-      ]);
       
       // If this was the active session, clear it
       if (activeSession?.id === session.id) {
         setActiveSession(null);
       }
+    } catch (error) {
+      console.error('Error claiming pack:', error);
+      // Show error to user
+      alert('Failed to claim pack. Please try again.');
     } finally {
       setClaimingReward(false);
     }
@@ -644,7 +577,7 @@ export default function MainSlideover({ isOpen, onClose, selectedBlockType, onSe
                 onClick={() => setActiveTab('blocks')}
               >
                 {/* <PlantIcon size={16} weight="bold" /> */}
-                <h1 className="text-xs font-medium font-mono uppercase">Seeds</h1>
+                <h1 className="text-xs font-medium font-mono uppercase">Blocks</h1>
 
                 {Object.keys(blockInventory).length > 0 && (
                   <span className=" bg-green-500 rounded-full h-2 w-2 ml-1">
@@ -817,10 +750,19 @@ export default function MainSlideover({ isOpen, onClose, selectedBlockType, onSe
                           <button
                             onClick={() => claimReward(activeSession)}
                             disabled={claimingReward}
-                            className="bg-yellow-500 text-white px-6 py-3 rounded-lg hover:bg-yellow-600 transition-colors flex items-center justify-center gap-2 mx-auto text-sm font-medium"
+                            className="bg-yellow-500 text-white px-6 py-3 rounded-lg hover:bg-yellow-600 transition-colors flex items-center justify-center gap-2 mx-auto text-sm font-medium disabled:opacity-75"
                           >
-                            <PackageIcon size={20} weight="fill" />
-                            {claimingReward ? 'Opening Pack...' : `Claim Your Pack (${activeSession.timeInSeconds >= 3600 ? '6' : '3'} Seeds)`}
+                            {claimingReward ? (
+                              <>
+                                <CircleNotchIcon size={20} weight="bold" className="animate-spin" />
+                                Opening Pack...
+                              </>
+                            ) : (
+                              <>
+                                <PackageIcon size={20} weight="fill" />
+                                Claim Your Pack ({activeSession.timeInSeconds >= 3600 ? '6' : '3'} Seeds)
+                              </>
+                            )}
                           </button>
                         ) : (
                           <>
@@ -926,7 +868,7 @@ export default function MainSlideover({ isOpen, onClose, selectedBlockType, onSe
                               key={session.id}
                               onClick={() => claimReward(session)}
                               disabled={claimingReward}
-                              className="relative bg-gradient-to-br from-amber-100 to-yellow-50 rounded-md overflow-hidden border-2 border-amber-300 transition-all transform hover:scale-110 hover:shadow-lg group hover:rotate-2"
+                              className="relative bg-gradient-to-br from-amber-100 to-yellow-50 rounded-md overflow-hidden border-2 border-amber-300 transition-all transform hover:scale-110 hover:shadow-lg group hover:rotate-2 disabled:opacity-50 disabled:cursor-not-allowed"
                               style={{ aspectRatio: '3/4' }}
                             >
                               {/* Top tear strip */}
@@ -1008,6 +950,16 @@ export default function MainSlideover({ isOpen, onClose, selectedBlockType, onSe
                               
                               {/* Hover shine effect */}
                               <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white to-transparent opacity-0 group-hover:opacity-20 transition-opacity pointer-events-none" />
+                              
+                              {/* Loading overlay */}
+                              {claimingReward && (
+                                <div className="absolute inset-0 bg-white/80 backdrop-blur-sm flex items-center justify-center">
+                                  <div className="flex flex-col items-center gap-2">
+                                    <CircleNotchIcon size={32} weight="bold" className="animate-spin text-amber-600" />
+                                    <span className="text-xs font-medium text-amber-800">Opening Pack...</span>
+                                  </div>
+                                </div>
+                              )}
                             </button>
                           );
                         })}

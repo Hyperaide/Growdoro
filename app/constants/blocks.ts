@@ -11,6 +11,8 @@ export interface BlockType {
   category: 'terrain' | 'plant' | 'decoration';
   imageScale?: number;  // Optional scale factor for this block's image
   yOffset?: number;     // Optional vertical offset in pixels (positive moves up)
+  opacity?: number;     // Optional opacity for the block (0-1)
+  supporterOnly?: boolean; // Optional flag to indicate if the block is only available to supporters
 }
 
 export const BLOCK_TYPES: Record<string, BlockType> = {
@@ -25,6 +27,48 @@ export const BLOCK_TYPES: Record<string, BlockType> = {
     decayTime: 0,
     rarity: 'common',
     yOffset: 0  // Ground level, no offset needed
+  },
+  'water': {
+    id: 'water',
+    name: 'Water',
+    imagePath: '/blocks/water.png',
+    category: 'terrain',
+    growthTime: 0,
+    decayTime: 0,
+    rarity: 'rare',
+    yOffset: -4,
+    imageScale: 1.4,
+    slideoverImage: '/plants/water-slideover.png',
+    opacity: 0.9,
+    supporterOnly: true
+  },
+  'daisy': {
+    id: 'daisy',
+    name: 'Daisy',
+    latinName: 'Bellis perennis',
+    blurb: 'These cheerful white petals with sunny yellow centers are perfect for beginners. Beloved by bees and butterflies, daisies bloom reliably and spread naturally to create delightful carpets of joy.',
+    imagePath: '/plants/daisy.png',
+    category: 'plant',
+    growthTime: 0.5,
+    decayTime: 0,
+    rarity: 'common',
+    yOffset: 0,
+    imageScale: 1.21,
+    slideoverImage: '/plants/daisy-slideover.png',
+  },
+  'carnation': {
+    id: 'carnation',
+    name: 'Carnation',
+    latinName: 'Dianthus caryophyllus',
+    blurb: 'A classic flower that is easy to grow and attracts bees and butterflies. A classic in any garden',
+    imagePath: '/plants/carnation.png',
+    category: 'plant',  
+    growthTime: 1,
+    decayTime: 0,
+    rarity: 'uncommon',
+    yOffset: 3,
+    imageScale: 1.24,
+    slideoverImage: '/plants/carnation-slideover.png',
   },
   'marigold': {
     id: 'marigold',

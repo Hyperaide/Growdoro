@@ -345,8 +345,13 @@ const IsometricGarden: React.FC = () => {
       ctx.imageSmoothingEnabled = true;
       ctx.imageSmoothingQuality = 'high';
       
+      // Apply block-specific opacity if defined
+      if (blockType?.opacity !== undefined) {
+        ctx.globalAlpha = blockType.opacity;
+      }
+      
       if (isHovered) {
-        ctx.globalAlpha = 0.7; // 50% opacity when hovered
+        ctx.globalAlpha = ctx.globalAlpha * 0.7; // Reduce opacity further when hovered
       }
       
       // Calculate the target area for the isometric cell
