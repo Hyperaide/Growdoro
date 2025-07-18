@@ -10,6 +10,7 @@ import NumberFlow, { NumberFlowGroup } from '@number-flow/react'
 import posthog from "posthog-js";
 import { useAuth } from '../contexts/auth-context';
 import AuthButton from "./AuthButton";
+import { DateTime } from "luxon";
 
 interface MainSlideoverProps {
   isOpen: boolean;
@@ -201,9 +202,9 @@ export default function MainSlideover({ isOpen, onClose, selectedBlockType, onSe
   // Memoize expensive calculations
   const sessionsWithUnclaimedRewards = useMemo(() => {
     return sessions.filter(session => {
-      const sessionDuration = session.timeInSeconds;
+      const sessionDuration = session.timeInSeconds * 1000;
       const sessionStartedAt = session.createdAt;
-      const now = Date.now();
+      const now = DateTime.now().toMillis();
       const timeElapsed = now - sessionStartedAt;
       return (timeElapsed >= sessionDuration) && !session.timeRemaining && !session.paused && !session.rewardsClaimedAt;
     });
