@@ -398,7 +398,7 @@ export default function MainSlideover({ isOpen, onClose, selectedBlockType, onSe
   };
 
   const claimReward = async (session: Session) => {
-    if (session.rewardsClaimedAt || !session.completedAt) return;
+    if (session.rewardsClaimedAt) return;
     
     setClaimingReward(true);
     
