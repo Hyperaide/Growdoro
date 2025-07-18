@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { BLOCK_TYPES, TILE_CONFIG, BlockTypeId, TILLED_GRASS_CONFIG } from '../constants/blocks';
 import BlockSlideover from './BlockSlideover';
 import MainSlideover from './MainSlideover';
@@ -45,6 +45,12 @@ const IsometricGarden: React.FC = () => {
   const [isSlideoverOpen, setIsSlideoverOpen] = useState(false);
   const [isMainSlideoverOpen, setIsMainSlideoverOpen] = useState(true);
   const [selectedInventoryBlock, setSelectedInventoryBlock] = useState<string | null>(null);
+  
+  // Performance optimization: track if we need to render
+  const [needsRender, setNeedsRender] = useState(true);
+  const animationFrameRef = useRef<number | null>(null);
+  const gridCacheRef = useRef<ImageData | null>(null);
+  const lastCameraRef = useRef<Camera>({ x: 0, y: 0, zoom: 1 });
   
   // Use auth context for session management
   const { user, sessionId } = useAuth();
@@ -215,17 +221,23 @@ const IsometricGarden: React.FC = () => {
     tilledGrassImg.src = '/blocks/tilled-grass.png';
   }, []);
 
+  // Memoize window dimensions to reduce recalculations
+  const windowDimensions = useMemo(() => ({
+    width: typeof window !== 'undefined' ? window.innerWidth : 0,
+    height: typeof window !== 'undefined' ? window.innerHeight : 0
+  }), []);
+
   // Convert world coordinates to screen coordinates
   const worldToScreen = useCallback((x: number, y: number, z: number) => {
     const tileWidth = TILE_CONFIG.width * camera.zoom;
     const tileHeight = TILE_CONFIG.height * camera.zoom;
     
     // This gives us the TOP point of the isometric tile
-    const screenX = (x - y) * (tileWidth / 2) + camera.x + window.innerWidth / 2;
-    const screenY = (x + y) * (tileHeight / 2) - z * (TILE_CONFIG.depth * camera.zoom) + camera.y + window.innerHeight / 2;
+    const screenX = (x - y) * (tileWidth / 2) + camera.x + windowDimensions.width / 2;
+    const screenY = (x + y) * (tileHeight / 2) - z * (TILE_CONFIG.depth * camera.zoom) + camera.y + windowDimensions.height / 2;
     
     return { x: screenX, y: screenY };
-  }, [camera]);
+  }, [camera, windowDimensions]);
 
   // Convert screen coordinates to world coordinates (fixed for better accuracy)
   const screenToWorld = useCallback((screenX: number, screenY: number) => {
@@ -233,8 +245,8 @@ const IsometricGarden: React.FC = () => {
     const tileHeight = TILE_CONFIG.height * camera.zoom;
     
     // Adjust for camera and center
-    const adjustedX = screenX - camera.x - window.innerWidth / 2;
-    const adjustedY = screenY - camera.y - window.innerHeight / 2;
+    const adjustedX = screenX - camera.x - windowDimensions.width / 2;
+    const adjustedY = screenY - camera.y - windowDimensions.height / 2;
     
     // Convert to world coordinates
     const x = (adjustedX / (tileWidth / 2) + adjustedY / (tileHeight / 2)) / 2;
@@ -242,7 +254,7 @@ const IsometricGarden: React.FC = () => {
     
     // Round to nearest integer for grid snapping
     return { x: Math.floor(x + 0.5), y: Math.floor(y + 0.5) };
-  }, [camera]);
+  }, [camera, windowDimensions]);
 
   // Draw grid indicator for hovered tile
   const drawHoveredTileIndicator = useCallback((ctx: CanvasRenderingContext2D) => {
@@ -386,28 +398,36 @@ const IsometricGarden: React.FC = () => {
     }
   }, [camera, worldToScreen, hoveredBlock, loadedImages]);
 
-  // Render the scene
-  const render = useCallback(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
+  // Optimized grid drawing with caching
+  const drawGrid = useCallback((ctx: CanvasRenderingContext2D) => {
+    // Check if we need to redraw the grid
+    const cameraChanged = lastCameraRef.current.x !== camera.x || 
+                         lastCameraRef.current.y !== camera.y || 
+                         lastCameraRef.current.zoom !== camera.zoom;
     
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    
-    // Clear canvas
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    if (!cameraChanged && gridCacheRef.current) {
+      // Use cached grid
+      ctx.putImageData(gridCacheRef.current, 0, 0);
+      return;
+    }
     
     // Draw grid lines for reference (subtle)
-    ctx.strokeStyle = 'rgba(147, 196, 188, 0.2)'; // Change this! Format: rgba(red, green, blue, opacity)
+    ctx.strokeStyle = 'rgba(147, 196, 188, 0.2)';
     ctx.lineWidth = 1;
     
     // Calculate visible grid range
-    const visibleRange = Math.ceil((Math.max(window.innerWidth, window.innerHeight) / (TILE_CONFIG.width * camera.zoom)) / 2) + 5;
+    const visibleRange = Math.ceil((Math.max(windowDimensions.width, windowDimensions.height) / (TILE_CONFIG.width * camera.zoom)) / 2) + 5;
     const centerX = -Math.floor(camera.x / (TILE_CONFIG.width * camera.zoom));
     const centerY = -Math.floor(camera.y / (TILE_CONFIG.height * camera.zoom));
     
-    for (let x = centerX - visibleRange; x <= centerX + visibleRange; x++) {
-      for (let y = centerY - visibleRange; y <= centerY + visibleRange; y++) {
+    // Limit grid drawing to visible area only
+    const minX = Math.max(centerX - visibleRange, -50);
+    const maxX = Math.min(centerX + visibleRange, 50);
+    const minY = Math.max(centerY - visibleRange, -50);
+    const maxY = Math.min(centerY + visibleRange, 50);
+    
+    for (let x = minX; x <= maxX; x++) {
+      for (let y = minY; y <= maxY; y++) {
         const { x: screenX, y: screenY } = worldToScreen(x, y, 0);
         const size = TILE_CONFIG.width * camera.zoom;
         const height = TILE_CONFIG.height * camera.zoom;
@@ -420,6 +440,25 @@ const IsometricGarden: React.FC = () => {
         ctx.stroke();
       }
     }
+    
+    // Cache the grid
+    gridCacheRef.current = ctx.getImageData(0, 0, ctx.canvas.width, ctx.canvas.height);
+    lastCameraRef.current = { ...camera };
+  }, [camera, worldToScreen, windowDimensions]);
+
+  // Render the scene - optimized version
+  const render = useCallback(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    
+    // Clear canvas
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    // Draw cached grid
+    drawGrid(ctx);
     
     // Sort blocks by depth for proper rendering order
     const sortedBlocks = [...blocks].sort((a, b) => {
@@ -451,8 +490,9 @@ const IsometricGarden: React.FC = () => {
       ctx.restore();
     }
     
-    // Coordinates display removed
-  }, [blocks, camera, drawBlock, worldToScreen, drawHoveredTileIndicator, hoveredTile, isPanning]);
+    // Reset render flag
+    setNeedsRender(false);
+  }, [blocks, drawBlock, drawGrid, drawHoveredTileIndicator, hoveredTile, isDragging, draggedBlock]);
 
   // Handle canvas resize
   useEffect(() => {
@@ -477,31 +517,59 @@ const IsometricGarden: React.FC = () => {
         ctx.scale(dpr, dpr);
       }
       
-      render();
+      // Clear grid cache on resize
+      gridCacheRef.current = null;
+      setNeedsRender(true);
     };
     
     handleResize();
     window.addEventListener('resize', handleResize);
     
     return () => window.removeEventListener('resize', handleResize);
-  }, [render]);
+  }, []);
 
-  // Continuous render loop for smooth animations
+  // Optimized render loop - only renders when needed
   useEffect(() => {
-    let animationId: number;
+    if (!needsRender) return;
     
     const animate = () => {
       render();
-      animationId = requestAnimationFrame(animate);
     };
     
-    // Start the animation loop
-    animationId = requestAnimationFrame(animate);
+    animationFrameRef.current = requestAnimationFrame(animate);
     
     return () => {
-      cancelAnimationFrame(animationId);
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
     };
-  }, [render]);
+  }, [needsRender, render]);
+
+  // Track state changes that require re-render
+  useEffect(() => {
+    setNeedsRender(true);
+  }, [blocks, camera, hoveredBlock, hoveredTile, isDragging, draggedBlock]);
+
+  // Check for animation updates
+  useEffect(() => {
+    const checkAnimations = () => {
+      const now = Date.now();
+      const hasActiveAnimations = blocks.some(block => {
+        if (block.placedAt) {
+          const elapsed = now - block.placedAt;
+          return elapsed < 300; // Animation duration
+        }
+        return false;
+      });
+      
+      if (hasActiveAnimations) {
+        setNeedsRender(true);
+        requestAnimationFrame(checkAnimations);
+      }
+    };
+    
+    checkAnimations();
+  }, [blocks]);
 
   // Handle mouse events
   const handleMouseDown = (e: React.MouseEvent) => {
@@ -625,23 +693,33 @@ const IsometricGarden: React.FC = () => {
     }
   };
 
-  const handleMouseMove = (e: React.MouseEvent) => {
+  const handleMouseMove = useCallback((e: React.MouseEvent) => {
     if (isPanning) {
       setCamera({
         ...camera,
         x: e.clientX - panStart.x,
         y: e.clientY - panStart.y
       });
+      // Clear grid cache when panning
+      gridCacheRef.current = null;
     } else {
       // Update hovered tile
       const { x, y } = screenToWorld(e.clientX, e.clientY);
-      setHoveredTile({ x, y });
+      
+      // Only update if changed
+      if (!hoveredTile || hoveredTile.x !== x || hoveredTile.y !== y) {
+        setHoveredTile({ x, y });
+      }
       
       // Update hovered block
       const block = blocks.find(b => b.x === x && b.y === y && b.z === 0);
-      setHoveredBlock(block?.id || null);
+      const newHoveredBlock = block?.id || null;
+      
+      if (newHoveredBlock !== hoveredBlock) {
+        setHoveredBlock(newHoveredBlock);
+      }
     }
-  };
+  }, [isPanning, camera, panStart, screenToWorld, hoveredTile, blocks, hoveredBlock]);
 
   const handleMouseUp = (e: React.MouseEvent) => {
     setIsPanning(false);
@@ -689,12 +767,17 @@ const IsometricGarden: React.FC = () => {
     setHoveredBlock(null);
   };
 
-  const handleWheel = (e: React.WheelEvent) => {
+  const handleWheel = useCallback((e: React.WheelEvent) => {
     e.preventDefault();
     const zoomSpeed = 0.001;
     const newZoom = Math.max(0.5, Math.min(3, camera.zoom - e.deltaY * zoomSpeed));
-    setCamera({ ...camera, zoom: newZoom });
-  };
+    
+    if (newZoom !== camera.zoom) {
+      setCamera({ ...camera, zoom: newZoom });
+      // Clear grid cache when zooming
+      gridCacheRef.current = null;
+    }
+  }, [camera]);
 
   const handleContextMenu = (e: React.MouseEvent) => {
     e.preventDefault();

@@ -1,7 +1,7 @@
 'use client'
 import { XIcon, TimerIcon, PlayIcon, PauseIcon, CheckIcon, PackageIcon, PlantIcon, FlowerLotusIcon, ListChecksIcon, ArrowsOutSimpleIcon, BellIcon, SealCheckIcon, SparkleIcon } from "@phosphor-icons/react";
 import { motion, AnimatePresence } from "motion/react";
-import { useRef, useState, useEffect } from "react";
+import { useRef, useState, useEffect, useMemo, useCallback, memo } from "react";
 import { db } from "../../lib/db";
 import { id } from "@instantdb/react";
 import { BLOCK_TYPES, BlockTypeId } from "../constants/blocks";
@@ -107,6 +107,35 @@ const getRandomBlockTypes = (count: number): string[] => {
   return selected;
 };
 
+// Memoized timer display component
+const TimerDisplay = memo(({ remainingTime }: { remainingTime: number }) => {
+  const mins = Math.floor(remainingTime / 60);
+  const secs = Math.floor(remainingTime % 60);
+  
+  return (
+    <div className="text-4xl font-barlow font-bold text-gray-800">
+      <NumberFlowGroup>
+        <div style={{ fontVariantNumeric: 'tabular-nums', '--number-flow-char-height': '0.85em' } as React.CSSProperties}>
+          <NumberFlow 
+            trend={-1} 
+            value={mins} 
+            format={{ minimumIntegerDigits: 2 }} 
+          />
+          <NumberFlow
+            prefix=":"
+            trend={-1}
+            value={secs}
+            digits={{ 1: { max: 5 } }}
+            format={{ minimumIntegerDigits: 2 }}
+          />
+        </div>
+      </NumberFlowGroup>
+    </div>
+  );
+});
+
+TimerDisplay.displayName = 'TimerDisplay';
+
 export default function MainSlideover({ isOpen, onClose, selectedBlockType, onSelectBlockType }: MainSlideoverProps) {
   const mainSlideoverRef = useRef<HTMLDivElement>(null);
   const [timerMinutes, setTimerMinutes] = useState(25);
@@ -123,6 +152,10 @@ export default function MainSlideover({ isOpen, onClose, selectedBlockType, onSe
   
   const { user, profile, sessionId } = useAuth();
   const effectiveSessionId = user?.id || sessionId || browserSessionId;
+  
+  // Refs for timer optimization
+  const timerIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const lastRemainingTimeRef = useRef<number>(0);
   
   // Get browser session ID on mount
   useEffect(() => {
@@ -153,10 +186,10 @@ export default function MainSlideover({ isOpen, onClose, selectedBlockType, onSe
       $: {
         where: user ? {
           'user.id': user.id,
-          x: { $isNull: true } // Only unplaced blocks
+          x: { $isNull: true }
         } : {
           sessionId: effectiveSessionId,
-          x: { $isNull: true } // Only unplaced blocks
+          x: { $isNull: true }
         }
       }
     }
@@ -165,26 +198,27 @@ export default function MainSlideover({ isOpen, onClose, selectedBlockType, onSe
   const sessions = data?.sessions || [];
   const unplacedBlocks = data?.blocks || [];
 
+  // Memoize expensive calculations
+  const sessionsWithUnclaimedRewards = useMemo(() => {
+    return sessions.filter(session => {
+      const sessionDuration = session.timeInSeconds;
+      const sessionStartedAt = session.createdAt;
+      const now = Date.now();
+      const timeElapsed = now - sessionStartedAt;
+      return (timeElapsed >= sessionDuration) && !session.timeRemaining && !session.paused && !session.rewardsClaimedAt;
+    });
+  }, [sessions]);
 
-  const sessionCompleted = (session: Session) => {
-    // check if time from when it was started to now is greater than the session duration
-    const sessionDuration = session.timeInSeconds;
-    const sessionStartedAt = session.createdAt;
-    const now = Date.now();
-    const timeElapsed = now - sessionStartedAt;
-    return (timeElapsed >= sessionDuration) && !session.timeRemaining && !session.paused
-  }
-
-  const sessionsWithUnclaimedRewards = sessions.filter(session => sessionCompleted(session) && !session.rewardsClaimedAt);
-
-  // Group blocks by type
-  const blockInventory = unplacedBlocks.reduce((acc, block) => {
-    if (!acc[block.type]) {
-      acc[block.type] = 0;
-    }
-    acc[block.type]++;
-    return acc;
-  }, {} as Record<string, number>);
+  // Group blocks by type - memoize this calculation
+  const blockInventory = useMemo(() => {
+    return unplacedBlocks.reduce((acc, block) => {
+      if (!acc[block.type]) {
+        acc[block.type] = 0;
+      }
+      acc[block.type]++;
+      return acc;
+    }, {} as Record<string, number>);
+  }, [unplacedBlocks]);
 
   // Load the latest active timer on mount or when sessions change
   useEffect(() => {
@@ -224,34 +258,49 @@ export default function MainSlideover({ isOpen, onClose, selectedBlockType, onSe
     }
   }, [sessions, activeSession]);
 
-  // Timer effect
+  // Optimized timer effect using refs
   useEffect(() => {
-    if (!activeSession || activeSession.completedAt || isPaused) return;
+    if (!activeSession || activeSession.completedAt || isPaused) {
+      if (timerIntervalRef.current) {
+        clearInterval(timerIntervalRef.current);
+        timerIntervalRef.current = null;
+      }
+      return;
+    }
 
-    const interval = setInterval(() => {
-      setRemainingTime(prev => Math.max(0, prev - 1)); // Decrement by 1 second
-    }, 1000); // Update every second
+    // Update immediately
+    setRemainingTime(prev => {
+      const newTime = Math.max(0, prev - 1);
+      lastRemainingTimeRef.current = newTime;
+      return newTime;
+    });
 
-    return () => clearInterval(interval);
+    timerIntervalRef.current = setInterval(() => {
+      setRemainingTime(prev => {
+        const newTime = Math.max(0, prev - 1);
+        lastRemainingTimeRef.current = newTime;
+        return newTime;
+      });
+    }, 1000);
+
+    return () => {
+      if (timerIntervalRef.current) {
+        clearInterval(timerIntervalRef.current);
+        timerIntervalRef.current = null;
+      }
+    };
   }, [activeSession, isPaused]);
 
-  // Update document title with timer
+  // Update document title with timer - use ref to avoid recreating
   useEffect(() => {
-    const originalTitle = document.title;
-    
     if (activeSession && !activeSession.completedAt && remainingTime > 0) {
       const mins = Math.floor(remainingTime / 60);
       const secs = remainingTime % 60;
       const timeString = `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
       document.title = `${timeString} - Growdoro`;
     } else {
-      document.title = originalTitle;
+      document.title = 'Growdoro';
     }
-
-    // Cleanup: restore original title when component unmounts or timer ends
-    return () => {
-      document.title = originalTitle;
-    };
   }, [activeSession, remainingTime]);
 
   // Handle timer completion
@@ -476,38 +525,68 @@ export default function MainSlideover({ isOpen, onClose, selectedBlockType, onSe
     }
   };
 
-  const formatTime = (seconds: number) => {
+  const formatTime = useCallback((seconds: number) => {
     const mins = Math.floor(seconds / 60);
-    const secs = Math.floor(seconds % 60); // Use Math.floor to ensure integer
+    const secs = Math.floor(seconds % 60);
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-  };
+  }, []);
 
-  const formatSessionTime = (session: Session) => {
+  const formatSessionTime = useCallback((session: Session) => {
     const mins = Math.floor(session.timeInSeconds / 60);
     return `${mins} min`;
-  };
+  }, []);
+
+  // Update time/date less frequently
+  const [currentTime, setCurrentTime] = useState(() => new Date().toLocaleTimeString());
+  const [currentDate, setCurrentDate] = useState(() => {
+    const date = new Date();
+    const dateStr = date.toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'long' });
+    return dateStr.replace(/(\d+)/, (match) => {
+      const day = parseInt(match);
+      const suffix = day === 1 || day === 21 || day === 31 ? 'st' :
+                   day === 2 || day === 22 ? 'nd' :
+                   day === 3 || day === 23 ? 'rd' : 'th';
+      return day + suffix;
+    });
+  });
+
+  // Update time every minute instead of every render
+  useEffect(() => {
+    const updateDateTime = () => {
+      setCurrentTime(new Date().toLocaleTimeString());
+      const date = new Date();
+      const dateStr = date.toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'long' });
+      setCurrentDate(dateStr.replace(/(\d+)/, (match) => {
+        const day = parseInt(match);
+        const suffix = day === 1 || day === 21 || day === 31 ? 'st' :
+                     day === 2 || day === 22 ? 'nd' :
+                     day === 3 || day === 23 ? 'rd' : 'th';
+        return day + suffix;
+      }));
+    };
+
+    const interval = setInterval(updateDateTime, 60000); // Update every minute
+    return () => clearInterval(interval);
+  }, []);
 
   return (
     <>
       <motion.div
-          initial={{ x: '-100%', opacity: 0 }}
-          animate={{ x: isOpen ? '0%' : '-100%', opacity: isOpen ? 1 : 0 }}
+          initial={{ x: '-100%' }}
+          animate={{ x: isOpen ? '0%' : '-100%' }}
           transition={{ 
-            duration: 0.2, 
-            ease: 'easeInOut',
+            duration: 0.15, 
+            ease: 'easeOut',
             type: 'tween'
           }}
           ref={mainSlideoverRef}
           className={`fixed left-2 top-2 overflow-y-auto bg-white rounded-xl strong-shadow z-50 p-2`}
           style={{
             width: '100%',
-            maxWidth: '24rem', // max-w-sm equivalent
+            maxWidth: '24rem',
             maxHeight: '70%',
             WebkitOverflowScrolling: 'touch',
-            willChange: 'transform',
-            WebkitBackfaceVisibility: 'hidden',
-            backfaceVisibility: 'hidden',
-            perspective: 1000
+            willChange: 'transform'
           }}
           onClick={(e) => e.stopPropagation()}
           tabIndex={-1}
@@ -515,14 +594,8 @@ export default function MainSlideover({ isOpen, onClose, selectedBlockType, onSe
         <div className="flex flex-col gap-2" style={{ height: '100%' }}>
           <div className="flex flex-row justify-between items-start font-barlow">
             <div className="flex flex-col p-2">
-              <h1 className="text-sm font-medium">{new Date(Date.now()).toLocaleTimeString()}</h1>
-              <p className="text-sm font-medium text-gray-500">{new Date(Date.now()).toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'long' }).replace(/(\d+)/, (match) => {
-                const day = parseInt(match);
-                const suffix = day === 1 || day === 21 || day === 31 ? 'st' :
-                             day === 2 || day === 22 ? 'nd' :
-                             day === 3 || day === 23 ? 'rd' : 'th';
-                return day + suffix;
-              })}</p>
+              <h1 className="text-sm font-medium">{currentTime}</h1>
+              <p className="text-sm font-medium text-gray-500">{currentDate}</p>
             </div>
 
             <AuthButton />
@@ -611,12 +684,11 @@ export default function MainSlideover({ isOpen, onClose, selectedBlockType, onSe
             {activeTab && (
               <motion.div
                 key={activeTab}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                transition={{ duration: 0.2, type: 'tween' }}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.1, type: 'tween' }}
                 className="flex-1"
-                style={{ WebkitTransform: 'translateZ(0)' }}
               >
                 {activeTab === 'timer' && (
                   <div className="flex-1 overflow-y-auto">
@@ -701,24 +773,7 @@ export default function MainSlideover({ isOpen, onClose, selectedBlockType, onSe
                     {!activeSession.completedAt ? (
                       <>
                         <div className="text-center">
-                          <div className="text-4xl font-barlow font-bold text-gray-800">
-                            <NumberFlowGroup>
-                              <div style={{ fontVariantNumeric: 'tabular-nums', '--number-flow-char-height': '0.85em' } as React.CSSProperties}>
-                                <NumberFlow 
-                                  trend={-1} 
-                                  value={Math.floor(remainingTime / 60)} 
-                                  format={{ minimumIntegerDigits: 2 }} 
-                                />
-                                <NumberFlow
-                                  prefix=":"
-                                  trend={-1}
-                                  value={Math.floor(remainingTime % 60)}
-                                  digits={{ 1: { max: 5 } }}
-                                  format={{ minimumIntegerDigits: 2 }}
-                                />
-                              </div>
-                            </NumberFlowGroup>
-                          </div>
+                          <TimerDisplay remainingTime={remainingTime} />
                         </div>
                         <div className="flex gap-2">
                           <button
