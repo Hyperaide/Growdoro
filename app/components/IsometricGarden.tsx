@@ -9,7 +9,6 @@ import { db } from '../../lib/db';
 import { id } from '@instantdb/react';
 import { XIcon } from '@phosphor-icons/react';
 import { DateTime } from 'luxon';
-import Dock from './Dock';
 import posthog from 'posthog-js';
 import { useAuth } from '../contexts/auth-context';
 import AuthButton from './AuthButton';
