@@ -103,6 +103,8 @@ export default function MainSlideover({ isOpen, onClose, selectedBlockType, onSe
   // Refs for timer optimization
   const timerIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const lastRemainingTimeRef = useRef<number>(0);
+  const resumedAtRef = useRef<number | null>(null);
+  const remainingTimeOnResumeRef = useRef<number | null>(null);
   
   // Get browser session ID on mount
   useEffect(() => {
@@ -215,20 +217,33 @@ export default function MainSlideover({ isOpen, onClose, selectedBlockType, onSe
       return;
     }
 
-    // Update immediately
-    setRemainingTime(prev => {
-      const newTime = Math.max(0, prev - 1);
-      lastRemainingTimeRef.current = newTime;
-      return newTime;
-    });
+    resumedAtRef.current = Date.now();
+    remainingTimeOnResumeRef.current = remainingTime;
 
-    timerIntervalRef.current = setInterval(() => {
-      setRemainingTime(prev => {
-        const newTime = Math.max(0, prev - 1);
+    const tick = () => {
+      const remainingOnResume = remainingTimeOnResumeRef.current;
+      const resumeTime = resumedAtRef.current;
+
+      if (remainingOnResume !== null && resumeTime !== null) {
+        const elapsedSeconds = (Date.now() - resumeTime) / 1000;
+        const newTime = Math.round(remainingOnResume - elapsedSeconds);
+        
         lastRemainingTimeRef.current = newTime;
-        return newTime;
-      });
-    }, 1000);
+
+        if (newTime <= 0) {
+          setRemainingTime(0);
+          if (timerIntervalRef.current) {
+            clearInterval(timerIntervalRef.current);
+            timerIntervalRef.current = null;
+          }
+        } else {
+          setRemainingTime(newTime);
+        }
+      }
+    };
+
+    tick(); // Run once immediately
+    timerIntervalRef.current = setInterval(tick, 1000);
 
     return () => {
       if (timerIntervalRef.current) {
