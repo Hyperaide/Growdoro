@@ -11,6 +11,7 @@ import posthog from "posthog-js";
 import { useAuth } from '../contexts/auth-context';
 import AuthButton from "./AuthButton";
 import { DateTime } from "luxon";
+import { UPDATES } from "../constants/updates";
 
 interface MainSlideoverProps {
   isOpen: boolean;
@@ -90,7 +91,7 @@ export default function MainSlideover({ isOpen, onClose, selectedBlockType, onSe
   const [remainingTime, setRemainingTime] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
   const [browserSessionId, setBrowserSessionId] = useState<string>('');
-  const [activeTab, setActiveTab] = useState<'timer' | 'sessions' | 'blocks' | 'packs' | 'help' | 'supporter' | null>('timer');
+  const [activeTab, setActiveTab] = useState<'timer' | 'sessions' | 'blocks' | 'packs' | 'help' | 'supporter' | 'updates' | null>('timer');
   const [claimingReward, setClaimingReward] = useState(false);
   const [packOpeningRewards, setPackOpeningRewards] = useState<string[]>([]);
   const [showPackOpening, setShowPackOpening] = useState(false);
@@ -560,7 +561,7 @@ export default function MainSlideover({ isOpen, onClose, selectedBlockType, onSe
             )} */}
           </div>
           <div className="flex flex-row justify-between items-center ">
-            <div className="flex flex-row items-center gap-2 w-full">
+            <div className="flex flex-wrap items-center gap-2 w-full">
               <button 
                 className={`flex flex-row items-center gap-1 px-2 py-1 rounded-lg transition-colors ${activeTab === 'timer' ? 'bg-gray-200' : 'bg-transparent hover:bg-gray-100'}`} 
                 onClick={() => setActiveTab('timer')}
@@ -605,6 +606,12 @@ export default function MainSlideover({ isOpen, onClose, selectedBlockType, onSe
                 onClick={() => setActiveTab('help')}
               >
                 <h1 className="text-xs font-medium font-mono uppercase">Help</h1>
+              </button>
+              <button 
+                className={`flex flex-row items-center gap-1 px-2 py-1 rounded-lg transition-colors ${activeTab === 'updates' ? 'bg-gray-200' : 'bg-transparent hover:bg-gray-100'}`} 
+                onClick={() => setActiveTab('updates')}
+              >
+                <h1 className="text-xs font-medium font-mono uppercase">Updates</h1>
               </button>
               {user && !profile?.supporter && (
                 <button 
@@ -1032,6 +1039,20 @@ export default function MainSlideover({ isOpen, onClose, selectedBlockType, onSe
                   })}
                 </div>
               )}
+            </div>
+          )}
+
+          {activeTab === 'updates' && (
+            <div className="flex-1 overflow-y-auto">
+              <div className="space-y-4">
+                {UPDATES.map((update) => (
+                  <div key={update.id} className="bg-gray-50 rounded-lg p-3">
+                    <h4 className="text-xs font-mono uppercase font-medium text-gray-800 mb-1">{update.title}</h4>
+                    <p className="text-xs text-gray-600 leading-relaxed">{update.description}</p>
+                    <p className="text-xs text-gray-600 leading-relaxed mt-1">{DateTime.fromISO(update.date).toRelative()}</p>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 
