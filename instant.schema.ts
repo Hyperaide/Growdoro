@@ -36,6 +36,7 @@ const _schema = i.schema({
       paused: i.boolean().optional(),
       completedAt: i.date().optional(),
       rewardsClaimedAt: i.date().optional(),
+      cancelledAt: i.date().optional().indexed(),
     }),
   },
   links: {
