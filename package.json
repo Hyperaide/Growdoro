@@ -15,6 +15,7 @@
     "@number-flow/react": "^0.5.10",
     "@phosphor-icons/react": "^2.1.10",
     "@react-oauth/google": "^0.12.2",
+    "@trigger.dev/sdk": "^3.3.17",
     "canvas-confetti": "^1.9.3",
     "luxon": "^3.7.1",
     "motion": "^12.23.3",
@@ -26,6 +27,7 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
+    "@trigger.dev/build": "^3.3.17",
     "@types/canvas-confetti": "^1.9.0",
     "@types/luxon": "^3.6.2",
     "@types/node": "^20",

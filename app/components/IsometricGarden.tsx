@@ -6,12 +6,13 @@ import BlockSlideover from './BlockSlideover';
 import MainSlideover from './MainSlideover';
 import { HourglassIcon } from '@phosphor-icons/react';
 import { db } from '../../lib/db';
-import { id } from '@instantdb/react';
+import { id, InstaQLParams } from '@instantdb/react';
 import { XIcon } from '@phosphor-icons/react';
 import { DateTime } from 'luxon';
 import posthog from 'posthog-js';
 import { useAuth } from '../contexts/auth-context';
 import AuthButton from './AuthButton';
+import { AppSchema } from '@/instant.schema';
 
 interface Block {
   id: string;
@@ -65,18 +66,27 @@ const IsometricGarden: React.FC = () => {
   const [showMobileInstructions, setShowMobileInstructions] = useState(false);
   const [hasSeenInstructions, setHasSeenInstructions] = useState(false);
 
-  // Real-time query for blocks
-  const { data } = db.useQuery({
-    blocks: effectiveSessionId ? {
+
+  const query = user ? {
+    blocks: {
       $: {
-        where: user ? {
+        where: {
           'user.id': user.id
-        } : {
-          sessionId: effectiveSessionId
         }
       }
-    } : {}
-  });
+    }
+  } : {
+    blocks: {
+      $: {
+        where: {
+          sessionId: sessionId
+        }
+      }
+    }
+  }
+
+  // Real-time query for blocks
+  const { data } = db.useQuery(query as InstaQLParams<AppSchema>);
 
   // Check if user has seen mobile instructions
   useEffect(() => {
@@ -89,6 +99,8 @@ const IsometricGarden: React.FC = () => {
 
   // Update blocks from real-time data
   useEffect(() => {
+    console.log('effectiveSessionId', effectiveSessionId);
+
     if (!effectiveSessionId || !data?.blocks) return;
 
     if (data.blocks.length > 0) {
@@ -111,6 +123,7 @@ const IsometricGarden: React.FC = () => {
 
       setBlocks(loadedBlocks);
     } else {
+      console.log('no blocks');
       // Check if ANY blocks exist for this session (placed or unplaced)
       db.queryOnce({
         blocks: {
@@ -124,6 +137,11 @@ const IsometricGarden: React.FC = () => {
           }
         }
       }).then(({ data: checkData }) => {
+
+        console.log(effectiveSessionId)
+        console.log(checkData?.blocks?.length);
+        console.log(!checkData?.blocks?.length);
+
         // Only create default blocks if NO blocks exist at all for this session
         if (!checkData?.blocks?.length) {
           const positions = [

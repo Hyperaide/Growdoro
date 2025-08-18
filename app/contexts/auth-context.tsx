@@ -98,17 +98,32 @@ function AuthContextProviderInner({ children }: { children: React.ReactNode }) {
             });
 
             if (data?.blocks && data.blocks.length > 0) {
-              // Create transactions to update each block to belong to the user
-              const transactions = data.blocks.map(block => 
-                db.tx.blocks[block.id].update({
-                  sessionId: null
-                }).link({
-                  user: user.id
-                })
-              );
+
+
+              // get all the user blocks
+              const { data: userBlocks } = await db.queryOnce({
+                blocks: {
+                  $: {
+                    where: {
+                      'user.id': user.id
+                    }
+                  }
+                }
+              });
+
+
+              // Create transactions to update each block to belong to the user as long as a user block doesnt already exist in x, y, z
+              const transactions = data.blocks.map(block => {
+                const userBlock = userBlocks.blocks.find((b: any) => b.x === block.x && b.y === block.y && b.z === block.z);
+                if (!userBlock) {
+                  return db.tx.blocks[block.id].link({
+                    user: user.id
+                  });
+                }
+              });
 
               // Execute all updates in a single transaction
-              await db.transact(transactions);
+              await db.transact(transactions as any);
               console.log(`Transferred ${data.blocks.length} blocks from session to user ${user.id}`);
             }
           } catch (error) {
