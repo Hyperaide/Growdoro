@@ -84,6 +84,215 @@ const TimerDisplay = memo(({ remainingTime }: { remainingTime: number }) => {
 
 TimerDisplay.displayName = 'TimerDisplay';
 
+// Supporter Tab Component
+const SupporterTab = memo(({ profile }: { profile: any }) => {
+  const [isCancelling, setIsCancelling] = useState(false);
+  const [isReactivating, setIsReactivating] = useState(false);
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+
+  const handleCancelSubscription = async () => {
+    if (!profile?.stripeDetails?.subscriptionId) return;
+    
+    setIsCancelling(true);
+    try {
+      const response = await fetch('/api/stripe/cancel-subscription', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          subscriptionId: profile.stripeDetails.subscriptionId,
+          profileId: profile.id,
+        }),
+      });
+
+      const result = await response.json();
+      
+      if (result.success) {
+        // Show success message and close confirmation
+        setShowCancelConfirm(false);
+        // The UI will update automatically via the webhook
+      } else {
+        console.error('Failed to cancel subscription:', result.error);
+        alert('Failed to cancel subscription. Please try again.');
+      }
+    } catch (error) {
+      console.error('Error cancelling subscription:', error);
+      alert('Failed to cancel subscription. Please try again.');
+    } finally {
+      setIsCancelling(false);
+    }
+  };
+
+  const handleReactivateSubscription = async () => {
+    if (!profile?.stripeDetails?.subscriptionId) return;
+    
+    setIsReactivating(true);
+    try {
+      const response = await fetch('/api/stripe/reactivate-subscription', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          subscriptionId: profile.stripeDetails.subscriptionId,
+          profileId: profile.id,
+        }),
+      });
+
+      const result = await response.json();
+      
+      if (result.success) {
+        // The UI will update automatically via the webhook
+      } else {
+        console.error('Failed to reactivate subscription:', result.error);
+        alert('Failed to reactivate subscription. Please try again.');
+      }
+    } catch (error) {
+      console.error('Error reactivating subscription:', error);
+      alert('Failed to reactivate subscription. Please try again.');
+    } finally {
+      setIsReactivating(false);
+    }
+  };
+
+  const stripeDetails = profile?.stripeDetails as any;
+  const isSupporter = profile?.supporter;
+  const supporterUntil = profile?.supporterUntil;
+  const cancelAtPeriodEnd = stripeDetails?.cancelAtPeriodEnd;
+
+  return (
+    <div className="flex-1 overflow-y-auto p-2">
+      <div className="space-y-4">
+        <div className="rounded-lg gap-1 flex flex-col">
+          <h3 className="font-semibold text-neutral-800 flex flex-row items-center gap-2 text-sm">
+            <SparkleIcon size={16} weight="fill" className="text-green-600" />
+            Free Forever
+          </h3>
+          <p className="text-neutral-600 text-xs">
+            Growdoro will always be free to use. Enjoy unlimited pomodoro sessions and grow your infinite garden.
+          </p>
+        </div>
+
+        {isSupporter ? (
+          // Supporter Management UI
+          <div className="space-y-4">
+            <div className="bg-sky-50 border border-sky-200 rounded-lg p-3">
+              <h3 className="font-semibold text-neutral-800 mb-2 flex items-center gap-2 text-sm">
+                <SealCheckIcon size={16} weight="fill" className="text-sky-600" />
+                Supporter Status
+              </h3>
+              <div className="space-y-2">
+                <div className="text-xs text-neutral-600">
+                  <span className="font-medium">Status:</span> Active Supporter
+                </div>
+                {supporterUntil && (
+                  <div className="text-xs text-neutral-600">
+                    <span className="font-medium">Renews:</span> {DateTime.fromISO(supporterUntil).toLocaleString(DateTime.DATE_MED)}
+                  </div>
+                )}
+                {cancelAtPeriodEnd && (
+                  <div className="text-xs text-amber-600 bg-amber-50 p-2 rounded border border-amber-200">
+                    <span className="font-medium">Subscription will be cancelled</span> at the end of the current billing period.
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="bg-neutral-50 border border-neutral-200 rounded-lg p-3">
+              <h4 className="font-medium text-neutral-800 text-xs mb-2">Supporter Benefits</h4>
+              <ul className="text-xs text-neutral-600 space-y-1">
+                <li>• Early access to new features</li>
+                <li>• Exclusive plants and decorations</li>
+                <li>• 4 exclusive decoration blocks per year</li>
+                <li>• Supporter badge on your profile</li>
+              </ul>
+            </div>
+
+            <div className="border-t pt-4">
+              {cancelAtPeriodEnd ? (
+                <button
+                  onClick={handleReactivateSubscription}
+                  disabled={isReactivating}
+                  className="w-full text-xs flex flex-row items-center justify-center gap-2 font-medium text-center bg-green-100 text-green-700 px-4 py-3 rounded-lg hover:bg-green-200 transition-colors border border-green-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isReactivating ? 'Reactivating...' : 'Reactivate Subscription'}
+                </button>
+              ) : (
+                <button
+                  onClick={() => setShowCancelConfirm(true)}
+                  className="w-full text-xs flex flex-row items-center justify-center gap-2 font-medium text-center bg-red-100 text-red-700 px-4 py-3 rounded-lg hover:bg-red-200 transition-colors border border-red-200"
+                >
+                  Cancel Subscription
+                </button>
+              )}
+            </div>
+          </div>
+        ) : (
+          // Become a Supporter UI (existing)
+          <div className="space-y-4">
+            <div className="">
+              <h3 className="font-semibold text-neutral-800 mb-2 flex items-center gap-2 text-sm">
+                <SealCheckIcon size={16} weight="fill" className="text-sky-600" />
+                Become a Supporter
+              </h3>
+              <p className="text-neutral-600 text-xs mb-3">
+                If you want to support Growdoro and unlock some exclusive stuff, you can become a supporter. It's <span className="font-semibold text-sky-600">$10 a year.</span>
+              </p>
+              <p className="text-neutral-600 text-xs mb-3">
+                You get early access to new features, exclusive plants, 4 exclusive decorations blocks a year and a little badge on your profile ☺️
+              </p>
+            </div>
+
+            <div className="mt-4">
+              <a
+                href="#"
+                onClick={(e) => {
+                  e.preventDefault();
+                  window.open(`${process.env.NEXT_PUBLIC_STRIPE_PAYMENT_LINK}?client_reference_id=${profile?.id}`, '_blank');
+                }}
+                className="w-full text-xs flex flex-row items-center justify-center gap-2 font-medium text-center bg-sky-600 text-white px-4 py-3 rounded-lg hover:bg-sky-700 transition-colors"
+              >
+                <SealCheckIcon size={14} weight="fill" className="text-white" />
+                Become a Supporter - $10/year
+              </a>
+            </div>
+          </div>
+        )}
+
+        {/* Cancel Confirmation Modal */}
+        {showCancelConfirm && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg p-6 max-w-sm mx-4">
+              <h3 className="font-semibold text-neutral-800 mb-3">Cancel Subscription?</h3>
+              <p className="text-neutral-600 text-sm mb-4">
+                Your subscription will be cancelled at the end of the current billing period. You'll keep your supporter benefits until then.
+              </p>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowCancelConfirm(false)}
+                  className="flex-1 px-4 py-2 text-sm font-medium text-neutral-600 bg-neutral-100 rounded-lg hover:bg-neutral-200 transition-colors"
+                >
+                  Keep Subscription
+                </button>
+                <button
+                  onClick={handleCancelSubscription}
+                  disabled={isCancelling}
+                  className="flex-1 px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isCancelling ? 'Cancelling...' : 'Cancel Subscription'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+});
+
+SupporterTab.displayName = 'SupporterTab';
+
 export default function MainSlideover({ isOpen, onClose, selectedBlockType, onSelectBlockType }: MainSlideoverProps) {
   const mainSlideoverRef = useRef<HTMLDivElement>(null);
   const [timerMinutes, setTimerMinutes] = useState(25);
@@ -617,12 +826,14 @@ export default function MainSlideover({ isOpen, onClose, selectedBlockType, onSe
               >
                 <h1 className="text-xs font-medium font-mono uppercase">Updates</h1>
               </button>
-              {user && !profile?.supporter && (
+              {user && (
                 <button 
                   className={`flex flex-row items-center gap-1 px-2 py-1 rounded-lg transition-colors ${activeTab === 'supporter' ? 'bg-gray-200' : 'bg-transparent hover:bg-gray-100'}`} 
                   onClick={() => setActiveTab('supporter')}
                 >
-                  <h1 className="text-xs font-medium font-mono uppercase">Supporter</h1>
+                  <h1 className="text-xs font-medium font-mono uppercase">
+                    {profile?.supporter ? 'Manage' : 'Supporter'}
+                  </h1>
                 </button>
               )}
               
@@ -1143,46 +1354,7 @@ export default function MainSlideover({ isOpen, onClose, selectedBlockType, onSe
 
           {/* Supporter Tab */}
           {activeTab === 'supporter' && (
-            <div className="flex-1 overflow-y-auto p-2">
-              <div className="space-y-4">
-                <div className="rounded-lg gap-1 flex flex-col">
-                  <h3 className="font-semibold text-neutral-800 flex flex-row items-center gap-2 text-sm">
-                    <SparkleIcon size={16} weight="fill" className="text-green-600" />
-                    Free Forever
-                  </h3>
-                  <p className="text-neutral-600 text-xs">
-                    Growdoro will always be free to use. Enjoy unlimited pomodoro sessions and grow your infinite garden.
-                  </p>
-                </div>
-
-                <div className="">
-                  <h3 className="font-semibold text-neutral-800 mb-2 flex items-center gap-2 text-sm">
-                    <SealCheckIcon size={16} weight="fill" className="text-sky-600" />
-                    Become a Supporter
-                  </h3>
-                  <p className="text-neutral-600 text-xs mb-3">
-                    If you want to support Growdoro and unlock some exclusive stuff, you can become a supporter. It's <span className="font-semibold text-sky-600">$10 a year.</span>
-                  </p>
-                  <p className="text-neutral-600 text-xs mb-3">
-                    You get early access to new features, exclusive plants, 4 exclusive decorations blocks a year and a little badge on your profile ☺️
-                  </p>
-                </div>
-
-                <div className="mt-4">
-                  <a
-                    href="#"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      window.open(  `${process.env.NEXT_PUBLIC_STRIPE_PAYMENT_LINK}?client_reference_id=${profile?.id}`, '_blank');
-                    }}
-                    className="w-full text-xs flex flex-row items-center justify-center gap-2 font-medium text-center bg-sky-600 text-white px-4 py-3 rounded-lg hover:bg-sky-700 transition-colors"
-                  >
-                    <SealCheckIcon size={14} weight="fill" className="text-white" />
-                    Become a Supporter - $10/year
-                  </a>
-                </div>
-              </div>
-            </div>
+            <SupporterTab profile={profile} />
           )}
               </motion.div>
             )}
