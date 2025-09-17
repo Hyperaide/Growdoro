@@ -3,7 +3,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { UserIcon, SparkleIcon, ArrowRightIcon, CheckCircleIcon, XCircleIcon, CircleNotchIcon, SealCheckIcon } from '@phosphor-icons/react';
 import { motion, AnimatePresence } from 'motion/react';
-import posthog from 'posthog-js';
 import { useAuth } from '@/app/contexts/auth-context';
 
 interface ProfileCreationModalProps {

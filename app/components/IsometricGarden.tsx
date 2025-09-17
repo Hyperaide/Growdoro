@@ -9,7 +9,6 @@ import { db } from '../../lib/db';
 import { id, InstaQLParams } from '@instantdb/react';
 import { XIcon } from '@phosphor-icons/react';
 import { DateTime } from 'luxon';
-import posthog from 'posthog-js';
 import { useAuth } from '../contexts/auth-context';
 import AuthButton from './AuthButton';
 import { AppSchema } from '@/instant.schema';
@@ -675,11 +674,6 @@ const IsometricGarden: React.FC = () => {
       db.tx.blocks[unplacedBlock.id].update(updateData)
     );
 
-    posthog.capture('block_placed', {
-      block_id: unplacedBlock.id,
-      session_id: effectiveSessionId,
-      block_type: selectedInventoryBlock
-    })
 
     // Add to local state
     const newBlock: Block = {

@@ -1,69 +1,202 @@
-# Create T3 App
+# 🌱 Growdoro
 
-This is a [T3 Stack](https://create.t3.gg/) project bootstrapped with `create-t3-app`.
+<div align="center">
+  
+  [![Next.js](https://img.shields.io/badge/Next.js-15.0-black?style=for-the-badge&logo=next.js)](https://nextjs.org/)
+  [![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue?style=for-the-badge&logo=typescript)](https://www.typescriptlang.org/)
+  [![InstantDB](https://img.shields.io/badge/InstantDB-Latest-purple?style=for-the-badge)](https://www.instantdb.com/)
+  [![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)](LICENSE)
+  
+  **A beautiful, gamified productivity app where focus sessions grow your digital garden**
+  
+  [Demo](https://your-demo-url.com) • [Documentation](#documentation) • [Contributing](CONTRIBUTING.md) • [Report Bug](https://github.com/yourusername/growdoro/issues)
+  
+</div>
 
-## What's next? How do I make an app with this?
+---
 
-We try to keep this project as simple as possible, so you can start with just the scaffolding we set up for you, and add additional things later when they become necessary.
+## ✨ Features
 
-If you are not familiar with the different technologies used in this project, please refer to the respective docs. If you still are in the wind, please join our [Discord](https://t3.gg/discord) and ask for help.
+- 🎮 **Isometric Garden View** - Beautiful 3D isometric garden that grows as you complete focus sessions
+- ⏱️ **Focus Timer** - Pomodoro-style focus sessions to boost productivity
+- 🌻 **Plant Collection** - Unlock and collect various plants by completing sessions
+- 👤 **User Profiles** - Create your unique garden space with custom username
+- 💳 **Premium Features** - Support the project with optional premium subscription
+- 🔐 **Secure Authentication** - Google OAuth integration for easy sign-in
+- 📊 **Progress Tracking** - Track your focus sessions and garden growth over time
 
-- [Next.js](https://nextjs.org)
-- [NextAuth.js](https://next-auth.js.org)
-- [Prisma](https://prisma.io)
-- [Drizzle](https://orm.drizzle.team)
-- [Tailwind CSS](https://tailwindcss.com)
-- [tRPC](https://trpc.io)
+## 🚀 Quick Start
 
-## Learn More
+### Prerequisites
 
-To learn more about the [T3 Stack](https://create.t3.gg/), take a look at the following resources:
+- Node.js 18+ 
+- npm or yarn
+- An [InstantDB](https://www.instantdb.com/) account
+- Google OAuth credentials (for authentication)
+- Stripe account (optional, for payment features)
 
-- [Documentation](https://create.t3.gg/)
-- [Learn the T3 Stack](https://create.t3.gg/en/faq#what-learning-resources-are-currently-available) — Check out these awesome tutorials
+### Installation
 
-You can check out the [create-t3-app GitHub repository](https://github.com/t3-oss/create-t3-app) — your feedback and contributions are welcome!
-
-## How do I deploy this?
-
-Follow our deployment guides for [Vercel](https://create.t3.gg/en/deployment/vercel), [Netlify](https://create.t3.gg/en/deployment/netlify) and [Docker](https://create.t3.gg/en/deployment/docker) for more information.
-
-## Authentication Setup
-
-This app uses Google OAuth for authentication through InstantDB. The app works both with and without authentication:
-- **Without authentication**: Uses session IDs stored in localStorage
-- **With authentication**: Links data to your Google account
-
-### Setting up Google OAuth
-
-1. **Google Cloud Console Setup**:
-   - Go to [Google Cloud Console](https://console.cloud.google.com)
-   - Create a new project or select an existing one
-   - Enable the Google+ API
-   - Go to "Credentials" section
-   - Configure OAuth consent screen (if not already done)
-   - Create OAuth 2.0 Client ID (Web application)
-   - Add `https://api.instantdb.com/runtime/oauth/callback` to Authorized redirect URIs
-   - Add your domain to Authorized JavaScript origins (e.g., `http://localhost:3000` for development)
-
-2. **InstantDB Dashboard Setup**:
-   - Go to your [InstantDB dashboard](https://instantdb.com)
-   - Navigate to the Auth tab for your app
-   - Click "Set up Google"
-   - Enter your Google Client ID and Client Secret
-   - Add your website URLs to Redirect Origins
-
-3. **Environment Variables**:
-   Create a `.env.local` file with:
+1. **Clone the repository**
+   ```bash
+   git clone https://github.com/yourusername/growdoro.git
+   cd growdoro
    ```
+
+2. **Install dependencies**
+   ```bash
+   npm install
+   # or
+   yarn install
+   ```
+
+3. **Set up environment variables**
+   
+   Create a `.env.local` file in the root directory:
+   ```env
+   # InstantDB Configuration
    NEXT_PUBLIC_INSTANT_APP_ID=your_instant_app_id
-   NEXT_PUBLIC_GOOGLE_CLIENT_ID=your_google_client_id.apps.googleusercontent.com
+   INSTANT_ADMIN_TOKEN=your_instant_admin_token
+   
+   # Google OAuth
+   NEXT_PUBLIC_GOOGLE_CLIENT_ID=your_google_client_id
    NEXT_PUBLIC_GOOGLE_CLIENT_NAME=your_app_name
+   
+   # Stripe (Optional)
+   STRIPE_SECRET_KEY=your_stripe_secret_key
+   STRIPE_WEBHOOK_SECRET=your_stripe_webhook_secret
+   NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=your_stripe_publishable_key
+   
+   
+   # Application URL
+   NEXT_PUBLIC_APP_URL=http://localhost:3000
    ```
 
-### How Authentication Works
+4. **Set up InstantDB schema**
+   ```bash
+   npx instant-cli push
+   ```
 
-- Users can sign in with their Google account using the button in the top-right corner
-- When authenticated, all blocks and sessions are linked to the user's account
-- When not authenticated, data is stored locally using session IDs
-- User profiles are automatically created on first sign-in
+5. **Run the development server**
+   ```bash
+   npm run dev
+   # or
+   yarn dev
+   ```
+
+6. **Open your browser**
+   
+   Navigate to [http://localhost:3000](http://localhost:3000)
+
+## 📦 Tech Stack
+
+- **Framework:** [Next.js 15](https://nextjs.org/) with App Router
+- **Language:** [TypeScript](https://www.typescriptlang.org/)
+- **Database:** [InstantDB](https://www.instantdb.com/) - Real-time database
+- **Styling:** [Tailwind CSS v4](https://tailwindcss.com/)
+- **Authentication:** Google OAuth via InstantDB Auth
+- **Payments:** [Stripe](https://stripe.com/)
+- **Animations:** [Motion](https://motion.dev/)
+- **Icons:** [Phosphor Icons](https://phosphoricons.com/)
+
+## 📁 Project Structure
+
+```
+growdoro/
+├── app/                      # Next.js app directory
+│   ├── (public)/            # Public user profiles
+│   ├── api/                 # API routes
+│   ├── components/          # React components
+│   ├── contexts/            # React contexts
+│   └── constants/           # App constants
+├── lib/                     # Utility functions
+├── public/                  # Static assets
+│   ├── blocks/             # Block textures
+│   └── plants/             # Plant images
+├── instant.schema.ts        # InstantDB schema
+└── instant.perms.ts        # InstantDB permissions
+```
+
+## 🛠️ Development
+
+### Available Scripts
+
+```bash
+npm run dev          # Start development server with Turbopack
+npm run build        # Build for production
+npm run start        # Start production server
+npm run lint         # Run ESLint
+```
+
+### Key Components
+
+- **`IsometricGarden`** - Main garden view component
+- **`AuthButton`** - Authentication flow handler
+- **`ProfileCreationModal`** - New user onboarding
+- **`BlockSlideover`** - Plant selection interface
+- **`MainSlideover`** - Session timer and controls
+
+### Database Schema
+
+The app uses InstantDB with the following main entities:
+- **profiles** - User profiles with usernames
+- **blocks** - Garden blocks and plants
+- **sessions** - Focus session records
+- **$users** - InstantDB user accounts
+
+## 🤝 Contributing
+
+We love contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details on:
+
+- Code of Conduct
+- Development process
+- How to submit pull requests
+- Coding standards
+- Testing guidelines
+
+### Quick Contribution Guide
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request
+
+## 🐛 Bug Reports & Feature Requests
+
+Found a bug or have a feature idea? Please check if it's already been reported in our [issues](https://github.com/yourusername/growdoro/issues), then feel free to create a new issue with:
+
+- **Bug Reports:** Clear description, steps to reproduce, expected vs actual behavior
+- **Feature Requests:** Clear description, use case, potential implementation ideas
+
+## 📝 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 🙏 Acknowledgments
+
+- Plant artwork and sprites from [source]
+- Isometric engine inspiration from [source]
+- Community contributors and supporters
+
+## 💬 Community & Support
+
+- **Discord:** [Join our community](https://discord.gg/your-invite)
+- **Twitter:** [@yourhandle](https://twitter.com/yourhandle)
+- **Email:** support@growdoro.com
+
+## 🚧 Roadmap
+
+- [ ] Mobile responsive design
+- [ ] Multiplayer gardens
+- [ ] More plant varieties
+- [ ] Achievement system
+- [ ] Dark mode
+- [ ] Export garden as image
+- [ ] API for third-party integrations
+
+---
+
+<div align="center">
+  Made with 💚 by the Growdoro community
+</div>

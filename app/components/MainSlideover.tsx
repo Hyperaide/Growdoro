@@ -7,7 +7,6 @@ import { id } from "@instantdb/react";
 import { BLOCK_TYPES, BlockTypeId } from "../constants/blocks";
 import PackOpeningModal from "./PackOpeningModal";
 import NumberFlow, { NumberFlowGroup } from '@number-flow/react'
-import posthog from "posthog-js";
 import { useAuth } from '../contexts/auth-context';
 import AuthButton from "./AuthButton";
 import { DateTime } from "luxon";
@@ -566,10 +565,6 @@ export default function MainSlideover({ isOpen, onClose, selectedBlockType, onSe
       );
     }
 
-    posthog.capture('timer_session_started', {
-      session_id: newSessionId,
-      duration: timerMinutes
-    })
 
     const createdSession = {
       ...newSession,
@@ -653,10 +648,6 @@ export default function MainSlideover({ isOpen, onClose, selectedBlockType, onSe
       setPackOpeningRewards(result.rewardBlocks);
       setShowPackOpening(true);
       
-      posthog.capture('pack_opened', {
-        pack_size: result.packSize,
-        session_id: session.id
-      })
       
       // If this was the active session, clear it
       if (activeSession?.id === session.id) {
