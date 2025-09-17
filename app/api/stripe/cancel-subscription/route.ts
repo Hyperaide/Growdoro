@@ -61,8 +61,7 @@ export async function POST(request: Request) {
         return NextResponse.json({ 
             success: true,
             message: 'Subscription will be cancelled at the end of the current billing period',
-            cancelAtPeriodEnd: updatedSubscription.cancel_at_period_end,
-            currentPeriodEnd: updatedSubscription.current_period_end
+            cancelAtPeriodEnd: updatedSubscription.cancel_at_period_end
         });
     } catch (error) {
         console.error('Error cancelling subscription:', error);
