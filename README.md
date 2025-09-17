@@ -148,7 +148,6 @@ The app uses InstantDB with the following main entities:
 
 We love contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details on:
 
-- Code of Conduct
 - Development process
 - How to submit pull requests
 - Coding standards
