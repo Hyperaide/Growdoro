@@ -186,13 +186,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 🚧 Roadmap
 
-- [ ] Mobile responsive design
-- [ ] Multiplayer gardens
-- [ ] More plant varieties
-- [ ] Achievement system
-- [ ] Dark mode
-- [ ] Export garden as image
-- [ ] API for third-party integrations
+- [ ] Farm-type plants (strawberries, tomatoes, etc.)
 
 ---
 
