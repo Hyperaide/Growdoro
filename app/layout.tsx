@@ -62,6 +62,7 @@ export default function RootLayout({
         <div className="flex flex-col absolute bottom-4 left-4 pointer-events-none">
           <h1 className="text-lg md:text-2xl font-bold font-barlow uppercase text-black/20">Growdoro</h1>
           <p className="text-[10px] md:text-xs text-black/40">An infinite garden productivity app. Built by <a href="https://www.x.com/dqnamo/" className="text-black/50 pointer-events-auto">JP</a></p>
+          <p className="text-[10px] md:text-xs text-black/40">View code on <a href="https://github.com/hyperaide/growdoro" className="text-black/50 pointer-events-auto">GitHub</a></p>
         </div>
       </body>
     </html>
