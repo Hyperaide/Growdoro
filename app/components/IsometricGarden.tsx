@@ -1,17 +1,31 @@
-'use client';
+"use client";
 
-import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import { BLOCK_TYPES, TILE_CONFIG, BlockTypeId, TILLED_GRASS_CONFIG } from '../constants/blocks';
-import BlockSlideover from './BlockSlideover';
-import MainSlideover from './MainSlideover';
-import { HourglassIcon } from '@phosphor-icons/react';
-import { db } from '../../lib/db';
-import { id, InstaQLParams } from '@instantdb/react';
-import { XIcon } from '@phosphor-icons/react';
-import { DateTime } from 'luxon';
-import { useAuth } from '../contexts/auth-context';
-import AuthButton from './AuthButton';
-import { AppSchema } from '@/instant.schema';
+import React, {
+  useState,
+  useRef,
+  useEffect,
+  useCallback,
+  useMemo,
+} from "react";
+import {
+  BLOCK_TYPES,
+  TILE_CONFIG,
+  BlockTypeId,
+  TILLED_GRASS_CONFIG,
+  getBlockDisplayImage,
+  SpriteConfig,
+} from "../constants/blocks";
+import BlockSlideover from "./BlockSlideover";
+import MainSlideover from "./MainSlideover";
+import DevModePanel from "./DevModePanel";
+import { HourglassIcon } from "@phosphor-icons/react";
+import { db } from "../../lib/db";
+import { id, InstaQLParams } from "@instantdb/react";
+import { XIcon } from "@phosphor-icons/react";
+import { DateTime } from "luxon";
+import { useAuth } from "../contexts/auth-context";
+import AuthButton from "./AuthButton";
+import { AppSchema } from "@/instant.schema";
 
 interface Block {
   id: string;
@@ -36,69 +50,174 @@ const IsometricGarden: React.FC = () => {
   const [isPanning, setIsPanning] = useState(false);
   const [panStart, setPanStart] = useState({ x: 0, y: 0 });
   const [hoveredBlock, setHoveredBlock] = useState<string | null>(null);
-  const [hoveredTile, setHoveredTile] = useState<{ x: number; y: number } | null>(null);
-  const [loadedImages, setLoadedImages] = useState<Record<string, HTMLImageElement>>({});
+  const [hoveredTile, setHoveredTile] = useState<{
+    x: number;
+    y: number;
+  } | null>(null);
+  const [loadedImages, setLoadedImages] = useState<
+    Record<
+      string,
+      HTMLImageElement | HTMLImageElement[] // Single image or array of sprites
+    >
+  >({});
   const [isDragging, setIsDragging] = useState(false);
   const [draggedBlock, setDraggedBlock] = useState<Block | null>(null);
   const [selectedBlock, setSelectedBlock] = useState<Block | null>(null);
   const [isSlideoverOpen, setIsSlideoverOpen] = useState(false);
   const [isMainSlideoverOpen, setIsMainSlideoverOpen] = useState(true);
-  const [selectedInventoryBlock, setSelectedInventoryBlock] = useState<string | null>(null);
-  
+  const [selectedInventoryBlock, setSelectedInventoryBlock] = useState<
+    string | null
+  >(null);
+
   // Performance optimization: track if we need to render
   const [needsRender, setNeedsRender] = useState(true);
   const animationFrameRef = useRef<number | null>(null);
   const gridCacheRef = useRef<ImageData | null>(null);
   const lastCameraRef = useRef<Camera>({ x: 0, y: 0, zoom: 1 });
-  
+
   // Use auth context for session management
   const { user, sessionId } = useAuth();
   const effectiveSessionId = user?.id || sessionId;
 
   // Touch handling state
-  const [touchStartDistance, setTouchStartDistance] = useState<number | null>(null);
+  const [touchStartDistance, setTouchStartDistance] = useState<number | null>(
+    null
+  );
   const [touchStartTime, setTouchStartTime] = useState<number>(0);
-  const [lastTouchPosition, setLastTouchPosition] = useState<{ x: number; y: number } | null>(null);
+  const [lastTouchPosition, setLastTouchPosition] = useState<{
+    x: number;
+    y: number;
+  } | null>(null);
   const [isTouchDragging, setIsTouchDragging] = useState(false);
 
   // Mobile instructions state
   const [showMobileInstructions, setShowMobileInstructions] = useState(false);
   const [hasSeenInstructions, setHasSeenInstructions] = useState(false);
 
+  // Dev mode state (only enabled in development)
+  const isDevelopment = process.env.NODE_ENV === "development";
+  const [isDevModeOpen, setIsDevModeOpen] = useState(false);
+  const [instantGrowth, setInstantGrowth] = useState(false);
 
-  const query = user ? {
-    blocks: {
-      $: {
-        where: {
-          'user.id': user.id
-        }
+  const query = user
+    ? {
+        blocks: {
+          $: {
+            where: {
+              "user.id": user.id,
+            },
+          },
+        },
       }
-    }
-  } : {
-    blocks: {
-      $: {
-        where: {
-          sessionId: sessionId
-        }
-      }
-    }
-  }
+    : {
+        blocks: {
+          $: {
+            where: {
+              sessionId: sessionId,
+            },
+          },
+        },
+      };
 
   // Real-time query for blocks
   const { data } = db.useQuery(query as InstaQLParams<AppSchema>);
 
   // Check if user has seen mobile instructions
   useEffect(() => {
-    const instructionsSeen = localStorage.getItem('growdoro_mobile_instructions_seen');
-    if (!instructionsSeen && 'ontouchstart' in window) {
+    const instructionsSeen = localStorage.getItem(
+      "growdoro_mobile_instructions_seen"
+    );
+    if (!instructionsSeen && "ontouchstart" in window) {
       setShowMobileInstructions(true);
     }
     setHasSeenInstructions(!!instructionsSeen);
   }, []);
 
+  // Dev mode keyboard shortcut (Ctrl+D or Cmd+D) - only in development
+  useEffect(() => {
+    if (!isDevelopment) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === "d") {
+        e.preventDefault();
+        setIsDevModeOpen((prev) => !prev);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isDevelopment]);
+
+  // When instant growth is enabled, update all growing plants to be fully grown (dev mode only)
+  useEffect(() => {
+    if (!isDevelopment || !instantGrowth || !effectiveSessionId) return;
+
+    const updateGrowingBlocks = async () => {
+      try {
+        // Query all blocks for this session
+        const { data } = await db.queryOnce({
+          blocks: {
+            $: {
+              where: user
+                ? {
+                    "user.id": user.id,
+                  }
+                : {
+                    sessionId: effectiveSessionId,
+                  },
+            },
+          },
+        });
+
+        if (!data?.blocks) return;
+
+        const now = Date.now();
+        const transactions = data.blocks
+          .filter((dbBlock) => {
+            const blockType = BLOCK_TYPES[dbBlock.type as BlockTypeId];
+            if (!blockType) return false;
+
+            // Only update plants that are still growing
+            if (
+              blockType.category === "plant" &&
+              blockType.growthTime &&
+              dbBlock.plantedAt
+            ) {
+              const daysSincePlanted =
+                (now - new Date(dbBlock.plantedAt).getTime()) /
+                (1000 * 60 * 60 * 24);
+              return daysSincePlanted < blockType.growthTime;
+            }
+            return false;
+          })
+          .map((dbBlock) => {
+            const blockType = BLOCK_TYPES[dbBlock.type as BlockTypeId];
+            if (!blockType?.growthTime) return null;
+
+            // Set plantedAt to (growthTime + 1) days ago
+            const daysAgo = blockType.growthTime + 1;
+            const pastDate = new Date(now - daysAgo * 24 * 60 * 60 * 1000);
+
+            return db.tx.blocks[dbBlock.id].update({
+              plantedAt: pastDate.toISOString(),
+            });
+          })
+          .filter((tx) => tx !== null);
+
+        if (transactions.length > 0) {
+          await db.transact(transactions);
+        }
+      } catch (error) {
+        console.error("Failed to update growing blocks:", error);
+      }
+    };
+
+    updateGrowingBlocks();
+  }, [isDevelopment, instantGrowth, effectiveSessionId, user]);
+
   // Update blocks from real-time data
   useEffect(() => {
-    console.log('effectiveSessionId', effectiveSessionId);
+    console.log("effectiveSessionId", effectiveSessionId);
 
     if (!effectiveSessionId || !data?.blocks) return;
 
@@ -106,9 +225,14 @@ const IsometricGarden: React.FC = () => {
       // Filter for blocks that have been placed (have x, y coordinates)
       // and convert database blocks to our local Block format
       const loadedBlocks: Block[] = data.blocks
-        .filter(dbBlock => dbBlock.x !== null && dbBlock.x !== undefined && 
-                           dbBlock.y !== null && dbBlock.y !== undefined)
-        .map(dbBlock => ({
+        .filter(
+          (dbBlock) =>
+            dbBlock.x !== null &&
+            dbBlock.x !== undefined &&
+            dbBlock.y !== null &&
+            dbBlock.y !== undefined
+        )
+        .map((dbBlock) => ({
           id: dbBlock.id,
           x: dbBlock.x!,
           y: dbBlock.y!,
@@ -117,27 +241,30 @@ const IsometricGarden: React.FC = () => {
           // Don't set placedAt for loaded blocks to avoid animation
           placedAt: undefined,
           // Include plantedAt if it exists (parse ISO string to timestamp)
-          plantedAt: dbBlock.plantedAt ? new Date(dbBlock.plantedAt).getTime() : undefined
+          plantedAt: dbBlock.plantedAt
+            ? new Date(dbBlock.plantedAt).getTime()
+            : undefined,
         }));
 
       setBlocks(loadedBlocks);
     } else {
-      console.log('no blocks');
+      console.log("no blocks");
       // Check if ANY blocks exist for this session (placed or unplaced)
       db.queryOnce({
         blocks: {
           $: {
-            where: user ? {
-              'user.id': user.id
-            } : {
-              sessionId: effectiveSessionId
-            },
-            limit: 1
-          }
-        }
+            where: user
+              ? {
+                  "user.id": user.id,
+                }
+              : {
+                  sessionId: effectiveSessionId,
+                },
+            limit: 1,
+          },
+        },
       }).then(({ data: checkData }) => {
-
-        console.log(effectiveSessionId)
+        console.log(effectiveSessionId);
         console.log(checkData?.blocks?.length);
         console.log(!checkData?.blocks?.length);
 
@@ -147,38 +274,40 @@ const IsometricGarden: React.FC = () => {
             { x: 0, y: 0 },
             { x: 1, y: 0 },
             { x: 0, y: 1 },
-            { x: 1, y: 1 }
+            { x: 1, y: 1 },
           ];
 
           // Create blocks in database
-          const transactions = positions.map(pos => {
+          const transactions = positions.map((pos) => {
             const blockId = id();
-            const now = DateTime.now().toISO()
+            const now = DateTime.now().toISO();
 
             if (user) {
-              return db.tx.blocks[blockId].update({
-                x: pos.x,
-                y: pos.y,
-                z: 0,
-                type: 'dirt',
-                plantedAt: now
-              }).link({
-                user: user.id
-              });
+              return db.tx.blocks[blockId]
+                .update({
+                  x: pos.x,
+                  y: pos.y,
+                  z: 0,
+                  type: "dirt",
+                  plantedAt: now,
+                })
+                .link({
+                  user: user.id,
+                });
             } else {
               return db.tx.blocks[blockId].update({
                 x: pos.x,
                 y: pos.y,
                 z: 0,
-                type: 'dirt',
+                type: "dirt",
                 plantedAt: now,
-                sessionId: effectiveSessionId
+                sessionId: effectiveSessionId,
               });
             }
           });
 
-          db.transact(transactions).catch(error => {
-            console.error('Failed to create default blocks:', error);
+          db.transact(transactions).catch((error) => {
+            console.error("Failed to create default blocks:", error);
           });
         }
       });
@@ -187,210 +316,326 @@ const IsometricGarden: React.FC = () => {
 
   // Preload block images
   useEffect(() => {
-    const images: Record<string, HTMLImageElement> = {};
+    const images: Record<string, HTMLImageElement | HTMLImageElement[]> = {};
     let loadedCount = 0;
     const blockEntries = Object.entries(BLOCK_TYPES);
-    // Add 1 for the tilled-grass image
-    const totalImages = blockEntries.length + 1;
+
+    // Count total images to load
+    let totalImages = 1; // tilled-grass image
+    blockEntries.forEach(([blockId, blockType]) => {
+      if (blockType.sprites && blockType.sprites.length > 0) {
+        // Fully grown sprites
+        totalImages += blockType.sprites.length;
+      }
+      if (blockType.growingSprites && blockType.growingSprites.length > 0) {
+        // Growing stage sprites
+        totalImages += blockType.growingSprites.length;
+      }
+      // Only count legacy/imagePath if no sprites are defined
+      if (!blockType.sprites && !blockType.growingSprites) {
+        if (blockType.basePath && blockType.layerPath) {
+          // Legacy layered block: base + layer
+          totalImages += 2;
+        } else if (blockType.imagePath) {
+          // Single image block
+          totalImages += 1;
+        }
+      }
+    });
 
     if (blockEntries.length === 0) {
       setLoadedImages({});
       return;
     }
 
+    const checkAllLoaded = () => {
+      // Check if we've loaded all images
+      if (loadedCount === totalImages) {
+        setLoadedImages({ ...images });
+      }
+    };
+
     // Preload all block images
     blockEntries.forEach(([blockId, blockType]) => {
-      const img = new Image();
-      img.onload = () => {
-        images[blockId] = img;
-        loadedCount++;
-        if (loadedCount === totalImages) {
-          setLoadedImages(images);
-        }
-      };
-      img.onerror = () => {
-        console.warn(`Failed to load image for ${blockType.name} from ${blockType.imagePath}`);
-        loadedCount++;
-        if (loadedCount === totalImages) {
-          setLoadedImages(images);
-        }
-      };
-      img.src = blockType.imagePath;
+      // Load fully grown sprites
+      if (blockType.sprites && blockType.sprites.length > 0) {
+        // Sprite-based block: load all sprites
+        const spriteImages: HTMLImageElement[] = [];
+        let loadedSprites = 0;
+
+        blockType.sprites.forEach((sprite, index) => {
+          const spriteImg = new Image();
+          spriteImg.onload = () => {
+            spriteImages[index] = spriteImg;
+            loadedSprites++;
+            loadedCount++;
+            if (loadedSprites === blockType.sprites!.length) {
+              images[blockId] = spriteImages;
+            }
+            checkAllLoaded();
+          };
+          spriteImg.onerror = () => {
+            console.warn(
+              `Failed to load sprite ${index} for ${blockType.name} from ${sprite.path}`
+            );
+            loadedSprites++;
+            loadedCount++;
+            if (loadedSprites === blockType.sprites!.length) {
+              images[blockId] = spriteImages;
+            }
+            checkAllLoaded();
+          };
+          spriteImg.src = sprite.path;
+        });
+      }
+
+      // Load growing sprites (if different from fully grown sprites)
+      if (blockType.growingSprites && blockType.growingSprites.length > 0) {
+        const growingSpriteImages: HTMLImageElement[] = [];
+        let loadedGrowingSprites = 0;
+
+        blockType.growingSprites.forEach((sprite, index) => {
+          const spriteImg = new Image();
+          spriteImg.onload = () => {
+            growingSpriteImages[index] = spriteImg;
+            loadedGrowingSprites++;
+            loadedCount++;
+            if (loadedGrowingSprites === blockType.growingSprites!.length) {
+              images[`${blockId}-growing`] = growingSpriteImages;
+            }
+            checkAllLoaded();
+          };
+          spriteImg.onerror = () => {
+            console.warn(
+              `Failed to load growing sprite ${index} for ${blockType.name} from ${sprite.path}`
+            );
+            loadedGrowingSprites++;
+            loadedCount++;
+            if (loadedGrowingSprites === blockType.growingSprites!.length) {
+              images[`${blockId}-growing`] = growingSpriteImages;
+            }
+            checkAllLoaded();
+          };
+          spriteImg.src = sprite.path;
+        });
+      }
+
+      // Legacy layered block support (only if no sprites defined)
+      if (
+        blockType.basePath &&
+        blockType.layerPath &&
+        !blockType.sprites &&
+        !blockType.growingSprites
+      ) {
+        // Legacy layered block: load base and layer separately
+        const layeredImages: HTMLImageElement[] = [];
+        let baseLoaded = false;
+        let layerLoaded = false;
+
+        const checkBlockComplete = () => {
+          // Once both images are loaded (or failed), store the layered images array
+          if (baseLoaded && layerLoaded) {
+            images[blockId] = layeredImages;
+            checkAllLoaded();
+          }
+        };
+
+        // Load base image
+        const baseImg = new Image();
+        baseImg.onload = () => {
+          layeredImages[0] = baseImg;
+          baseLoaded = true;
+          loadedCount++;
+          checkBlockComplete();
+          checkAllLoaded();
+        };
+        baseImg.onerror = () => {
+          console.warn(
+            `Failed to load base image for ${blockType.name} from ${blockType.basePath}`
+          );
+          baseLoaded = true;
+          loadedCount++;
+          checkBlockComplete();
+          checkAllLoaded();
+        };
+        baseImg.src = blockType.basePath;
+
+        // Load layer image
+        const layerImg = new Image();
+        layerImg.onload = () => {
+          layeredImages[1] = layerImg;
+          layerLoaded = true;
+          loadedCount++;
+          checkBlockComplete();
+          checkAllLoaded();
+        };
+        layerImg.onerror = () => {
+          console.warn(
+            `Failed to load layer image for ${blockType.name} from ${blockType.layerPath}`
+          );
+          layerLoaded = true;
+          loadedCount++;
+          checkBlockComplete();
+          checkAllLoaded();
+        };
+        layerImg.src = blockType.layerPath;
+      }
+
+      // Single image block (backward compatibility, only if no sprites defined)
+      if (
+        blockType.imagePath &&
+        !blockType.sprites &&
+        !blockType.growingSprites &&
+        !blockType.basePath
+      ) {
+        const img = new Image();
+        img.onload = () => {
+          images[blockId] = img;
+          loadedCount++;
+          if (loadedCount === totalImages) {
+            setLoadedImages(images);
+          }
+        };
+        img.onerror = () => {
+          console.warn(
+            `Failed to load image for ${blockType.name} from ${blockType.imagePath}`
+          );
+          loadedCount++;
+          if (loadedCount === totalImages) {
+            setLoadedImages(images);
+          }
+        };
+        img.src = blockType.imagePath;
+      }
     });
 
     // Also preload the tilled-grass image for growing plants
     const tilledGrassImg = new Image();
     tilledGrassImg.onload = () => {
-      images['tilled-grass'] = tilledGrassImg;
+      images["tilled-grass"] = tilledGrassImg;
       loadedCount++;
       if (loadedCount === totalImages) {
         setLoadedImages(images);
       }
     };
     tilledGrassImg.onerror = () => {
-      console.warn('Failed to load tilled-grass image');
+      console.warn("Failed to load tilled-grass image");
       loadedCount++;
       if (loadedCount === totalImages) {
         setLoadedImages(images);
       }
     };
-    tilledGrassImg.src = '/blocks/tilled-grass.png';
+    tilledGrassImg.src = "/blocks/tilled-grass.png";
   }, []);
 
   // Memoize window dimensions to reduce recalculations
-  const windowDimensions = useMemo(() => ({
-    width: typeof window !== 'undefined' ? window.innerWidth : 0,
-    height: typeof window !== 'undefined' ? window.innerHeight : 0
-  }), []);
+  const windowDimensions = useMemo(
+    () => ({
+      width: typeof window !== "undefined" ? window.innerWidth : 0,
+      height: typeof window !== "undefined" ? window.innerHeight : 0,
+    }),
+    []
+  );
 
   // Convert world coordinates to screen coordinates
-  const worldToScreen = useCallback((x: number, y: number, z: number) => {
-    const tileWidth = TILE_CONFIG.width * camera.zoom;
-    const tileHeight = TILE_CONFIG.height * camera.zoom;
-    
-    // This gives us the TOP point of the isometric tile
-    const screenX = (x - y) * (tileWidth / 2) + camera.x + windowDimensions.width / 2;
-    const screenY = (x + y) * (tileHeight / 2) - z * (TILE_CONFIG.depth * camera.zoom) + camera.y + windowDimensions.height / 2;
-    
-    return { x: screenX, y: screenY };
-  }, [camera, windowDimensions]);
+  const worldToScreen = useCallback(
+    (x: number, y: number, z: number) => {
+      const tileWidth = TILE_CONFIG.width * camera.zoom;
+      const tileHeight = TILE_CONFIG.height * camera.zoom;
+
+      // This gives us the TOP point of the isometric tile
+      const screenX =
+        (x - y) * (tileWidth / 2) + camera.x + windowDimensions.width / 2;
+      const screenY =
+        (x + y) * (tileHeight / 2) -
+        z * (TILE_CONFIG.depth * camera.zoom) +
+        camera.y +
+        windowDimensions.height / 2;
+
+      return { x: screenX, y: screenY };
+    },
+    [camera, windowDimensions]
+  );
 
   // Convert screen coordinates to world coordinates (fixed for better accuracy)
-  const screenToWorld = useCallback((screenX: number, screenY: number) => {
-    const tileWidth = TILE_CONFIG.width * camera.zoom;
-    const tileHeight = TILE_CONFIG.height * camera.zoom;
-    
-    // Adjust for camera and center
-    const adjustedX = screenX - camera.x - windowDimensions.width / 2;
-    const adjustedY = screenY - camera.y - windowDimensions.height / 2;
-    
-    // Convert to world coordinates
-    const x = (adjustedX / (tileWidth / 2) + adjustedY / (tileHeight / 2)) / 2;
-    const y = (adjustedY / (tileHeight / 2) - adjustedX / (tileWidth / 2)) / 2;
-    
-    // Round to nearest integer for grid snapping
-    return { x: Math.floor(x + 0.5), y: Math.floor(y + 0.5) };
-  }, [camera, windowDimensions]);
+  const screenToWorld = useCallback(
+    (screenX: number, screenY: number) => {
+      const tileWidth = TILE_CONFIG.width * camera.zoom;
+      const tileHeight = TILE_CONFIG.height * camera.zoom;
+
+      // Adjust for camera and center
+      const adjustedX = screenX - camera.x - windowDimensions.width / 2;
+      const adjustedY = screenY - camera.y - windowDimensions.height / 2;
+
+      // Convert to world coordinates
+      const x =
+        (adjustedX / (tileWidth / 2) + adjustedY / (tileHeight / 2)) / 2;
+      const y =
+        (adjustedY / (tileHeight / 2) - adjustedX / (tileWidth / 2)) / 2;
+
+      // Round to nearest integer for grid snapping
+      return { x: Math.floor(x + 0.5), y: Math.floor(y + 0.5) };
+    },
+    [camera, windowDimensions]
+  );
 
   // Draw grid indicator for hovered tile
-  const drawHoveredTileIndicator = useCallback((ctx: CanvasRenderingContext2D) => {
-    if (!hoveredTile || isPanning) return;
-    
-    const { x: screenX, y: screenY } = worldToScreen(hoveredTile.x, hoveredTile.y, 0);
-    const size = TILE_CONFIG.width * camera.zoom;
-    const height = TILE_CONFIG.height * camera.zoom;
-    
-    ctx.save();
-    ctx.strokeStyle = '#ffffff';
-    ctx.lineWidth = 3;
-    ctx.setLineDash([5, 5]);
-    
-    // Draw diamond outline
-    ctx.beginPath();
-    ctx.moveTo(screenX, screenY);
-    ctx.lineTo(screenX + size / 2, screenY + height / 2);
-    ctx.lineTo(screenX, screenY + height);
-    ctx.lineTo(screenX - size / 2, screenY + height / 2);
-    ctx.closePath();
-    ctx.stroke();
-    
-    // Draw a semi-transparent preview
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
-    ctx.fill();
-    
-    ctx.restore();
-  }, [hoveredTile, isPanning, camera, worldToScreen]);
+  const drawHoveredTileIndicator = useCallback(
+    (ctx: CanvasRenderingContext2D) => {
+      if (!hoveredTile || isPanning) return;
 
-  // Draw a single block
-  const drawBlock = useCallback((ctx: CanvasRenderingContext2D, block: Block) => {
-    const { x: screenX, y: screenY } = worldToScreen(block.x, block.y, block.z);
-    const size = TILE_CONFIG.width * camera.zoom;
-    const height = TILE_CONFIG.height * camera.zoom;
-    
-    const isHovered = hoveredBlock === block.id;
-    
-    // Calculate animation progress if block was recently placed
-    let animationScale = 1;
-    let animationOffset = 0;
-    if (block.placedAt) {
-      const animationDuration = 300; // milliseconds
-      const elapsed = Date.now() - block.placedAt;
-      const progress = Math.min(elapsed / animationDuration, 1);
-      
-      // Smooth easing function for a subtle bounce
-      const easeOutBack = (t: number) => {
-        const c1 = 1.70158;
-        const c3 = c1 + 1;
-        return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2);
-      };
-      
-      animationScale = 0.85 + 0.15 * easeOutBack(progress);
-      animationOffset = (1 - easeOutBack(progress)) * 15; // Start 15 pixels higher
-    }
-    
+      const { x: screenX, y: screenY } = worldToScreen(
+        hoveredTile.x,
+        hoveredTile.y,
+        0
+      );
+      const size = TILE_CONFIG.width * camera.zoom;
+      const height = TILE_CONFIG.height * camera.zoom;
 
-    
-    // Determine which image to show based on growth status
-    let imageToShow = block.type;
-    const blockType = BLOCK_TYPES[block.type];
-    
-    // Check if this is a plant that needs to grow
-    let img: HTMLImageElement | undefined;
-    if (blockType && blockType.category === 'plant' && blockType.growthTime && block.plantedAt) {
-      const daysSincePlanted = (Date.now() - block.plantedAt) / (1000 * 60 * 60 * 24);
-      if (daysSincePlanted < blockType.growthTime) {
-        // Show tilled grass image directly while growing
-        img = loadedImages['tilled-grass'];
-      }
-    }
-    
-    // Use the block's image if not a growing plant
-    if (!img) {
-      img = loadedImages[imageToShow];
-    }
-    if (img) {
-      // Draw the block image in isometric style
       ctx.save();
-      
-      // Apply animation transform
-      ctx.translate(screenX, screenY - animationOffset);
-      ctx.scale(animationScale, animationScale);
-      ctx.translate(-screenX, -screenY + animationOffset);
-      
-      // Enable image smoothing for better quality
-      ctx.imageSmoothingEnabled = true;
-      ctx.imageSmoothingQuality = 'high';
-      
-      // Apply block-specific opacity if defined
-      if (blockType?.opacity !== undefined) {
-        ctx.globalAlpha = blockType.opacity;
-      }
-      
-      if (isHovered) {
-        ctx.globalAlpha = ctx.globalAlpha * 0.7; // Reduce opacity further when hovered
-      }
-      
-      // Calculate the target area for the isometric cell
-      const targetWidth = size;
-      const targetHeight = height + TILE_CONFIG.depth * camera.zoom;
-      
-      // Determine if we're showing tilled grass
-      const isShowingTilledGrass = img === loadedImages['tilled-grass'];
-      
-      // Use appropriate configuration based on what we're showing
-      const imageScale = isShowingTilledGrass 
-        ? TILLED_GRASS_CONFIG.imageScale 
-        : (blockType?.imageScale ?? TILE_CONFIG.defaultImageScale);
-      const yOffset = isShowingTilledGrass 
-        ? TILLED_GRASS_CONFIG.yOffset 
-        : (blockType?.yOffset ?? 0);
-      
+      ctx.strokeStyle = "#ffffff";
+      ctx.lineWidth = 3;
+      ctx.setLineDash([5, 5]);
+
+      // Draw diamond outline
+      ctx.beginPath();
+      ctx.moveTo(screenX, screenY);
+      ctx.lineTo(screenX + size / 2, screenY + height / 2);
+      ctx.lineTo(screenX, screenY + height);
+      ctx.lineTo(screenX - size / 2, screenY + height / 2);
+      ctx.closePath();
+      ctx.stroke();
+
+      // Draw a semi-transparent preview
+      ctx.fillStyle = "rgba(255, 255, 255, 0.3)";
+      ctx.fill();
+
+      ctx.restore();
+    },
+    [hoveredTile, isPanning, camera, worldToScreen]
+  );
+
+  // Helper function to draw a single image
+  const drawImage = useCallback(
+    (
+      ctx: CanvasRenderingContext2D,
+      img: HTMLImageElement,
+      screenX: number,
+      screenY: number,
+      size: number,
+      height: number,
+      imageScale: number,
+      yOffset: number,
+      opacity: number = 1
+    ) => {
       // Calculate scaled dimensions maintaining aspect ratio
       const imgAspectRatio = img.width / img.height;
+      const targetWidth = size;
+      const targetHeight = height + TILE_CONFIG.depth * camera.zoom;
       const targetAspectRatio = targetWidth / targetHeight;
-      
+
       let drawWidth, drawHeight;
-      
+
       if (imgAspectRatio > targetAspectRatio) {
         // Image is wider than target - fit to width
         drawWidth = targetWidth * imageScale;
@@ -398,167 +643,454 @@ const IsometricGarden: React.FC = () => {
       } else {
         // Image is taller than target - fit to height
         drawHeight = targetHeight * imageScale;
-        drawWidth = (targetHeight * imageScale) * imgAspectRatio;
+        drawWidth = targetHeight * imageScale * imgAspectRatio;
       }
-      
+
       // Center the image in the isometric cell with y-offset applied
       const drawX = screenX - drawWidth / 2;
-      const drawY = screenY - drawHeight / 2 - yOffset * camera.zoom; // Apply y-offset scaled by zoom
-      
-      ctx.drawImage(
-        img,
-        drawX,
-        drawY,
-        drawWidth,
-        drawHeight
+      const drawY = screenY - drawHeight / 2 - yOffset * camera.zoom;
+
+      // Apply opacity
+      const originalAlpha = ctx.globalAlpha;
+      ctx.globalAlpha = originalAlpha * opacity;
+
+      ctx.drawImage(img, drawX, drawY, drawWidth, drawHeight);
+
+      // Restore opacity
+      ctx.globalAlpha = originalAlpha;
+    },
+    [camera]
+  );
+
+  // Draw a single block
+  const drawBlock = useCallback(
+    (ctx: CanvasRenderingContext2D, block: Block) => {
+      const { x: screenX, y: screenY } = worldToScreen(
+        block.x,
+        block.y,
+        block.z
       );
-      
-      // Remove the outline drawing - we'll just keep the hover effect on the image
-      
+      const size = TILE_CONFIG.width * camera.zoom;
+      const height = TILE_CONFIG.height * camera.zoom;
+
+      const isHovered = hoveredBlock === block.id;
+
+      // Calculate animation progress if block was recently placed
+      let animationScale = 1;
+      let animationOffset = 0;
+      if (block.placedAt) {
+        const animationDuration = 300; // milliseconds
+        const elapsed = Date.now() - block.placedAt;
+        const progress = Math.min(elapsed / animationDuration, 1);
+
+        // Smooth easing function for a subtle bounce
+        const easeOutBack = (t: number) => {
+          const c1 = 1.70158;
+          const c3 = c1 + 1;
+          return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2);
+        };
+
+        animationScale = 0.85 + 0.15 * easeOutBack(progress);
+        animationOffset = (1 - easeOutBack(progress)) * 15; // Start 15 pixels higher
+      }
+
+      const blockType = BLOCK_TYPES[block.type];
+      if (!blockType) return;
+
+      // Check if this is a plant that needs to grow (dev mode instant growth only works in development)
+      let isGrowing = false;
+      if (
+        !(isDevelopment && instantGrowth) &&
+        blockType.category === "plant" &&
+        blockType.growthTime &&
+        block.plantedAt
+      ) {
+        const daysSincePlanted =
+          (Date.now() - block.plantedAt) / (1000 * 60 * 60 * 24);
+        isGrowing = daysSincePlanted < blockType.growthTime;
+      }
+
+      // Draw the block image in isometric style
+      ctx.save();
+
+      // Apply animation transform
+      ctx.translate(screenX, screenY - animationOffset);
+      ctx.scale(animationScale, animationScale);
+      ctx.translate(-screenX, -screenY + animationOffset);
+
+      // Enable image smoothing for better quality
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = "high";
+
+      // Apply block-specific opacity if defined
+      let baseOpacity = blockType.opacity ?? 1;
+      if (isHovered) {
+        baseOpacity = baseOpacity * 0.7; // Reduce opacity further when hovered
+      }
+
+      // Determine what to draw based on growth state
+      if (isGrowing) {
+        // Check if block has growing sprites defined
+        if (blockType.growingSprites && blockType.growingSprites.length > 0) {
+          // Use growing sprites
+          const growingImages = loadedImages[`${block.type}-growing`];
+          if (Array.isArray(growingImages)) {
+            // Sort sprites by zIndex if provided, otherwise use array order
+            const sortedSprites = blockType.growingSprites
+              .map((sprite, index) => ({
+                sprite,
+                index,
+                image: growingImages[index],
+              }))
+              .filter((item) => item.image) // Only include loaded images
+              .sort(
+                (a, b) =>
+                  (a.sprite.zIndex ?? a.index) - (b.sprite.zIndex ?? b.index)
+              );
+
+            // Draw each growing sprite with its individual configuration
+            sortedSprites.forEach(({ sprite, image }) => {
+              const imageScale =
+                sprite.scale ??
+                blockType.imageScale ??
+                TILE_CONFIG.defaultImageScale;
+              const yOffset = sprite.yOffset ?? blockType.yOffset ?? 0;
+              // Sprite opacity: use sprite's opacity if defined, otherwise use block's opacity, then apply hover effect
+              const spriteBaseOpacity =
+                sprite.opacity ?? blockType.opacity ?? 1;
+              const spriteOpacity = isHovered
+                ? spriteBaseOpacity * 0.7
+                : spriteBaseOpacity;
+
+              drawImage(
+                ctx,
+                image,
+                screenX,
+                screenY,
+                size,
+                height,
+                imageScale,
+                yOffset,
+                spriteOpacity
+              );
+            });
+          }
+        } else if (
+          loadedImages["tilled-grass"] &&
+          typeof loadedImages["tilled-grass"] === "object" &&
+          "width" in loadedImages["tilled-grass"]
+        ) {
+          // Fallback to tilled grass if no growing sprites defined
+          const tilledGrassImg = loadedImages[
+            "tilled-grass"
+          ] as HTMLImageElement;
+          const imageScale = TILLED_GRASS_CONFIG.imageScale;
+          const yOffset = TILLED_GRASS_CONFIG.yOffset;
+          drawImage(
+            ctx,
+            tilledGrassImg,
+            screenX,
+            screenY,
+            size,
+            height,
+            imageScale,
+            yOffset,
+            baseOpacity
+          );
+        }
+      } else if (blockType.sprites && blockType.sprites.length > 0) {
+        // Sprite-based block: draw all sprites in order
+        const blockImages = loadedImages[block.type];
+
+        if (Array.isArray(blockImages)) {
+          // Sort sprites by zIndex if provided, otherwise use array order
+          const sortedSprites = blockType.sprites
+            .map((sprite, index) => ({
+              sprite,
+              index,
+              image: blockImages[index],
+            }))
+            .filter((item) => item.image) // Only include loaded images
+            .sort(
+              (a, b) =>
+                (a.sprite.zIndex ?? a.index) - (b.sprite.zIndex ?? b.index)
+            );
+
+          // Draw each sprite with its individual configuration
+          sortedSprites.forEach(({ sprite, image }) => {
+            const imageScale =
+              sprite.scale ??
+              blockType.imageScale ??
+              TILE_CONFIG.defaultImageScale;
+            const yOffset = sprite.yOffset ?? blockType.yOffset ?? 0;
+            // Sprite opacity: use sprite's opacity if defined, otherwise use block's opacity, then apply hover effect
+            const spriteBaseOpacity = sprite.opacity ?? blockType.opacity ?? 1;
+            const spriteOpacity = isHovered
+              ? spriteBaseOpacity * 0.7
+              : spriteBaseOpacity;
+
+            drawImage(
+              ctx,
+              image,
+              screenX,
+              screenY,
+              size,
+              height,
+              imageScale,
+              yOffset,
+              spriteOpacity
+            );
+          });
+        }
+      } else if (blockType.basePath && blockType.layerPath) {
+        // Legacy layered block: draw base first, then layer on top
+        const blockImages = loadedImages[block.type];
+
+        if (Array.isArray(blockImages)) {
+          // Draw base layer (index 0)
+          if (blockImages[0]) {
+            const imageScale =
+              blockType.imageScale ?? TILE_CONFIG.defaultImageScale;
+            const yOffset = blockType.yOffset ?? 0;
+            drawImage(
+              ctx,
+              blockImages[0],
+              screenX,
+              screenY,
+              size,
+              height,
+              imageScale,
+              yOffset,
+              baseOpacity
+            );
+          }
+
+          // Draw layer on top (index 1)
+          if (blockImages[1]) {
+            const imageScale =
+              blockType.imageScale ?? TILE_CONFIG.defaultImageScale;
+            const yOffset = blockType.yOffset ?? 0;
+            drawImage(
+              ctx,
+              blockImages[1],
+              screenX,
+              screenY,
+              size,
+              height,
+              imageScale,
+              yOffset,
+              baseOpacity
+            );
+          }
+        }
+      } else if (blockType.imagePath) {
+        // Single image block (backward compatibility)
+        const blockImage = loadedImages[block.type];
+        if (
+          blockImage &&
+          typeof blockImage === "object" &&
+          "width" in blockImage &&
+          !Array.isArray(blockImage)
+        ) {
+          const img = blockImage as HTMLImageElement;
+          const isShowingTilledGrass = img === loadedImages["tilled-grass"];
+          const imageScale = isShowingTilledGrass
+            ? TILLED_GRASS_CONFIG.imageScale
+            : blockType.imageScale ?? TILE_CONFIG.defaultImageScale;
+          const yOffset = isShowingTilledGrass
+            ? TILLED_GRASS_CONFIG.yOffset
+            : blockType.yOffset ?? 0;
+          drawImage(
+            ctx,
+            img,
+            screenX,
+            screenY,
+            size,
+            height,
+            imageScale,
+            yOffset,
+            baseOpacity
+          );
+        }
+      }
+
       ctx.restore();
-    }
-  }, [camera, worldToScreen, hoveredBlock, loadedImages]);
+    },
+    [
+      camera,
+      worldToScreen,
+      hoveredBlock,
+      loadedImages,
+      drawImage,
+      instantGrowth,
+      isDevelopment,
+    ]
+  );
 
   // Optimized grid drawing with caching
-  const drawGrid = useCallback((ctx: CanvasRenderingContext2D) => {
-    // Check if we need to redraw the grid
-    const cameraChanged = lastCameraRef.current.x !== camera.x || 
-                         lastCameraRef.current.y !== camera.y || 
-                         lastCameraRef.current.zoom !== camera.zoom;
-    
-    if (!cameraChanged && gridCacheRef.current) {
-      // Use cached grid
-      ctx.putImageData(gridCacheRef.current, 0, 0);
-      return;
-    }
-    
-    // Draw grid lines for reference (subtle)
-    ctx.strokeStyle = 'rgba(147, 196, 188, 0.2)';
-    ctx.lineWidth = 1;
-    
-    // Calculate visible grid range
-    const visibleRange = Math.ceil((Math.max(windowDimensions.width, windowDimensions.height) / (TILE_CONFIG.width * camera.zoom)) / 2) + 5;
-    const centerX = -Math.floor(camera.x / (TILE_CONFIG.width * camera.zoom));
-    const centerY = -Math.floor(camera.y / (TILE_CONFIG.height * camera.zoom));
-    
-    // Limit grid drawing to visible area only
-    const minX = Math.max(centerX - visibleRange, -50);
-    const maxX = Math.min(centerX + visibleRange, 50);
-    const minY = Math.max(centerY - visibleRange, -50);
-    const maxY = Math.min(centerY + visibleRange, 50);
-    
-    for (let x = minX; x <= maxX; x++) {
-      for (let y = minY; y <= maxY; y++) {
-        const { x: screenX, y: screenY } = worldToScreen(x, y, 0);
-        const size = TILE_CONFIG.width * camera.zoom;
-        const height = TILE_CONFIG.height * camera.zoom;
-        
-        ctx.beginPath();
-        ctx.moveTo(screenX, screenY);
-        ctx.lineTo(screenX + size / 2, screenY + height / 2);
-        ctx.moveTo(screenX, screenY);
-        ctx.lineTo(screenX - size / 2, screenY + height / 2);
-        ctx.stroke();
+  const drawGrid = useCallback(
+    (ctx: CanvasRenderingContext2D) => {
+      // Check if we need to redraw the grid
+      const cameraChanged =
+        lastCameraRef.current.x !== camera.x ||
+        lastCameraRef.current.y !== camera.y ||
+        lastCameraRef.current.zoom !== camera.zoom;
+
+      if (!cameraChanged && gridCacheRef.current) {
+        // Use cached grid
+        ctx.putImageData(gridCacheRef.current, 0, 0);
+        return;
       }
-    }
-    
-    // Cache the grid
-    gridCacheRef.current = ctx.getImageData(0, 0, ctx.canvas.width, ctx.canvas.height);
-    lastCameraRef.current = { ...camera };
-  }, [camera, worldToScreen, windowDimensions]);
+
+      // Draw grid lines for reference (subtle)
+      ctx.strokeStyle = "rgba(147, 196, 188, 0.2)";
+      ctx.lineWidth = 1;
+
+      // Calculate visible grid range
+      const visibleRange =
+        Math.ceil(
+          Math.max(windowDimensions.width, windowDimensions.height) /
+            (TILE_CONFIG.width * camera.zoom) /
+            2
+        ) + 5;
+      const centerX = -Math.floor(camera.x / (TILE_CONFIG.width * camera.zoom));
+      const centerY = -Math.floor(
+        camera.y / (TILE_CONFIG.height * camera.zoom)
+      );
+
+      // Limit grid drawing to visible area only
+      const minX = Math.max(centerX - visibleRange, -50);
+      const maxX = Math.min(centerX + visibleRange, 50);
+      const minY = Math.max(centerY - visibleRange, -50);
+      const maxY = Math.min(centerY + visibleRange, 50);
+
+      for (let x = minX; x <= maxX; x++) {
+        for (let y = minY; y <= maxY; y++) {
+          const { x: screenX, y: screenY } = worldToScreen(x, y, 0);
+          const size = TILE_CONFIG.width * camera.zoom;
+          const height = TILE_CONFIG.height * camera.zoom;
+
+          ctx.beginPath();
+          ctx.moveTo(screenX, screenY);
+          ctx.lineTo(screenX + size / 2, screenY + height / 2);
+          ctx.moveTo(screenX, screenY);
+          ctx.lineTo(screenX - size / 2, screenY + height / 2);
+          ctx.stroke();
+        }
+      }
+
+      // Cache the grid
+      gridCacheRef.current = ctx.getImageData(
+        0,
+        0,
+        ctx.canvas.width,
+        ctx.canvas.height
+      );
+      lastCameraRef.current = { ...camera };
+    },
+    [camera, worldToScreen, windowDimensions]
+  );
 
   // Render the scene - optimized version
   const render = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    
-    const ctx = canvas.getContext('2d');
+
+    const ctx = canvas.getContext("2d");
     if (!ctx) return;
-    
+
     // Clear canvas
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    
+
     // Draw cached grid
     drawGrid(ctx);
-    
+
     // Sort blocks by depth for proper rendering order
     const sortedBlocks = [...blocks].sort((a, b) => {
       const depthA = a.x + a.y + a.z * 100;
       const depthB = b.x + b.y + b.z * 100;
       return depthA - depthB;
     });
-    
+
     // Draw all blocks
-    sortedBlocks.forEach(block => drawBlock(ctx, block));
-    
+    sortedBlocks.forEach((block) => drawBlock(ctx, block));
+
     // Draw hover indicator
     drawHoveredTileIndicator(ctx);
-    
+
     // Draw dragged block preview
     if (isDragging && draggedBlock && hoveredTile) {
       ctx.save();
       ctx.globalAlpha = 0.6;
-      
+
       // Draw the dragged block at the hovered position
       const previewBlock = {
         ...draggedBlock,
         x: hoveredTile.x,
         y: hoveredTile.y,
-        placedAt: undefined // No animation for preview
+        placedAt: undefined, // No animation for preview
       };
       drawBlock(ctx, previewBlock);
-      
+
       ctx.restore();
     }
-    
+
     // Reset render flag
     setNeedsRender(false);
-  }, [blocks, drawBlock, drawGrid, drawHoveredTileIndicator, hoveredTile, isDragging, draggedBlock]);
+  }, [
+    blocks,
+    drawBlock,
+    drawGrid,
+    drawHoveredTileIndicator,
+    hoveredTile,
+    isDragging,
+    draggedBlock,
+  ]);
 
   // Handle canvas resize
   useEffect(() => {
     const handleResize = () => {
       const canvas = canvasRef.current;
       if (!canvas) return;
-      
+
       // Get device pixel ratio for sharp rendering on high-DPI displays
       const dpr = window.devicePixelRatio || 1;
-      
+
       // Set canvas size accounting for device pixel ratio
       canvas.width = window.innerWidth * dpr;
       canvas.height = window.innerHeight * dpr;
-      
+
       // Scale canvas back down using CSS
-      canvas.style.width = window.innerWidth + 'px';
-      canvas.style.height = window.innerHeight + 'px';
-      
+      canvas.style.width = window.innerWidth + "px";
+      canvas.style.height = window.innerHeight + "px";
+
       // Scale the drawing context to match device pixel ratio
-      const ctx = canvas.getContext('2d');
+      const ctx = canvas.getContext("2d");
       if (ctx) {
         ctx.scale(dpr, dpr);
       }
-      
+
       // Clear grid cache on resize
       gridCacheRef.current = null;
       setNeedsRender(true);
     };
-    
+
     handleResize();
-    window.addEventListener('resize', handleResize);
-    
-    return () => window.removeEventListener('resize', handleResize);
+    window.addEventListener("resize", handleResize);
+
+    return () => window.removeEventListener("resize", handleResize);
   }, []);
 
   // Optimized render loop - only renders when needed
   useEffect(() => {
     if (!needsRender) return;
-    
+
     const animate = () => {
       render();
     };
-    
+
     animationFrameRef.current = requestAnimationFrame(animate);
-    
+
     return () => {
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current);
@@ -575,20 +1107,20 @@ const IsometricGarden: React.FC = () => {
   useEffect(() => {
     const checkAnimations = () => {
       const now = Date.now();
-      const hasActiveAnimations = blocks.some(block => {
+      const hasActiveAnimations = blocks.some((block) => {
         if (block.placedAt) {
           const elapsed = now - block.placedAt;
           return elapsed < 300; // Animation duration
         }
         return false;
       });
-      
+
       if (hasActiveAnimations) {
         setNeedsRender(true);
         requestAnimationFrame(checkAnimations);
       }
     };
-    
+
     checkAnimations();
   }, [blocks]);
 
@@ -600,16 +1132,18 @@ const IsometricGarden: React.FC = () => {
       setPanStart({ x: e.clientX - camera.x, y: e.clientY - camera.y });
     } else if (e.button === 0) {
       const { x, y } = screenToWorld(e.clientX, e.clientY);
-      
+
       // Check if clicking on an existing block
-      const existingBlock = blocks.find(b => b.x === x && b.y === y && b.z === 0);
-      
+      const existingBlock = blocks.find(
+        (b) => b.x === x && b.y === y && b.z === 0
+      );
+
       if (existingBlock && e.ctrlKey) {
         // Ctrl+click to start dragging a block
         setIsDragging(true);
         setDraggedBlock(existingBlock);
         // Remove the block from its current position
-        setBlocks(blocks.filter(b => b.id !== existingBlock.id));
+        setBlocks(blocks.filter((b) => b.id !== existingBlock.id));
       } else if (existingBlock && !e.ctrlKey) {
         // Regular click on a block opens the slideover
         setSelectedBlock(existingBlock);
@@ -633,18 +1167,20 @@ const IsometricGarden: React.FC = () => {
     const { data } = await db.queryOnce({
       blocks: {
         $: {
-          where: user ? {
-            'user.id': user.id,
-            type: selectedInventoryBlock,
-            x: { $isNull: true }
-          } : {
-            sessionId: effectiveSessionId,
-            type: selectedInventoryBlock,
-            x: { $isNull: true }
-          },
-          limit: 1
-        }
-      }
+          where: user
+            ? {
+                "user.id": user.id,
+                type: selectedInventoryBlock,
+                x: { $isNull: true },
+              }
+            : {
+                sessionId: effectiveSessionId,
+                type: selectedInventoryBlock,
+                x: { $isNull: true },
+              },
+          limit: 1,
+        },
+      },
     });
 
     const unplacedBlock = data?.blocks?.[0];
@@ -657,23 +1193,31 @@ const IsometricGarden: React.FC = () => {
     // Get block type and current time
     const blockType = BLOCK_TYPES[selectedInventoryBlock as BlockTypeId];
     const now = Date.now();
-    
+
     // Update the block in the database with its position
     const updateData: any = {
       x,
       y,
-      z: 0
+      z: 0,
     };
-    
+
     // Set plantedAt for all blocks when placed for the first time
-    if (!unplacedBlock.plantedAt) {
+    // If instant growth is enabled (dev mode only), always set plantedAt to a date far in the past
+    if (
+      isDevelopment &&
+      instantGrowth &&
+      blockType.category === "plant" &&
+      blockType.growthTime
+    ) {
+      // Set plantedAt to (growthTime + 1) days ago to ensure it's fully grown
+      const daysAgo = blockType.growthTime + 1;
+      const pastDate = new Date(now - daysAgo * 24 * 60 * 60 * 1000);
+      updateData.plantedAt = pastDate.toISOString();
+    } else if (!unplacedBlock.plantedAt) {
       updateData.plantedAt = new Date(now).toISOString();
     }
-    
-    await db.transact(
-      db.tx.blocks[unplacedBlock.id].update(updateData)
-    );
 
+    await db.transact(db.tx.blocks[unplacedBlock.id].update(updateData));
 
     // Add to local state
     const newBlock: Block = {
@@ -684,12 +1228,21 @@ const IsometricGarden: React.FC = () => {
       type: selectedInventoryBlock as BlockTypeId,
       placedAt: now,
       // Set plantedAt for all blocks when placed for the first time
-      plantedAt: !unplacedBlock.plantedAt 
-        ? now 
-        : unplacedBlock.plantedAt ? new Date(unplacedBlock.plantedAt).getTime() : undefined
+      // If instant growth is enabled (dev mode only), always set to past date
+      plantedAt:
+        isDevelopment &&
+        instantGrowth &&
+        blockType.category === "plant" &&
+        blockType.growthTime
+          ? now - (blockType.growthTime + 1) * 24 * 60 * 60 * 1000
+          : !unplacedBlock.plantedAt
+          ? now
+          : unplacedBlock.plantedAt
+          ? new Date(unplacedBlock.plantedAt).getTime()
+          : undefined,
     };
     setBlocks([...blocks, newBlock]);
-    
+
     // Clear selection if no more blocks of this type
     const { data: checkData } = await db.queryOnce({
       blocks: {
@@ -697,81 +1250,94 @@ const IsometricGarden: React.FC = () => {
           where: {
             sessionId: effectiveSessionId,
             type: selectedInventoryBlock,
-            x: { $isNull: true }
+            x: { $isNull: true },
           },
-          limit: 1
-        }
-      }
+          limit: 1,
+        },
+      },
     });
-    
+
     if (!checkData?.blocks?.length) {
       setSelectedInventoryBlock(null);
     }
   };
 
-  const handleMouseMove = useCallback((e: React.MouseEvent) => {
-    if (isPanning) {
-      setCamera({
-        ...camera,
-        x: e.clientX - panStart.x,
-        y: e.clientY - panStart.y
-      });
-      // Clear grid cache when panning
-      gridCacheRef.current = null;
-    } else {
-      // Update hovered tile
-      const { x, y } = screenToWorld(e.clientX, e.clientY);
-      
-      // Only update if changed
-      if (!hoveredTile || hoveredTile.x !== x || hoveredTile.y !== y) {
-        setHoveredTile({ x, y });
+  const handleMouseMove = useCallback(
+    (e: React.MouseEvent) => {
+      if (isPanning) {
+        setCamera({
+          ...camera,
+          x: e.clientX - panStart.x,
+          y: e.clientY - panStart.y,
+        });
+        // Clear grid cache when panning
+        gridCacheRef.current = null;
+      } else {
+        // Update hovered tile
+        const { x, y } = screenToWorld(e.clientX, e.clientY);
+
+        // Only update if changed
+        if (!hoveredTile || hoveredTile.x !== x || hoveredTile.y !== y) {
+          setHoveredTile({ x, y });
+        }
+
+        // Update hovered block
+        const block = blocks.find((b) => b.x === x && b.y === y && b.z === 0);
+        const newHoveredBlock = block?.id || null;
+
+        if (newHoveredBlock !== hoveredBlock) {
+          setHoveredBlock(newHoveredBlock);
+        }
       }
-      
-      // Update hovered block
-      const block = blocks.find(b => b.x === x && b.y === y && b.z === 0);
-      const newHoveredBlock = block?.id || null;
-      
-      if (newHoveredBlock !== hoveredBlock) {
-        setHoveredBlock(newHoveredBlock);
-      }
-    }
-  }, [isPanning, camera, panStart, screenToWorld, hoveredTile, blocks, hoveredBlock]);
+    },
+    [
+      isPanning,
+      camera,
+      panStart,
+      screenToWorld,
+      hoveredTile,
+      blocks,
+      hoveredBlock,
+    ]
+  );
 
   const handleMouseUp = (e: React.MouseEvent) => {
     setIsPanning(false);
-    
+
     // If dragging a block, place it at the current position
     if (isDragging && draggedBlock) {
       const { x, y } = screenToWorld(e.clientX, e.clientY);
-      
+
       // Check if position is already occupied
-      const existingBlock = blocks.find(b => b.x === x && b.y === y && b.z === 0);
-      
+      const existingBlock = blocks.find(
+        (b) => b.x === x && b.y === y && b.z === 0
+      );
+
       if (!existingBlock) {
         // Place the dragged block at the new position
         const movedBlock: Block = {
           ...draggedBlock,
           x,
           y,
-          placedAt: Date.now() // Trigger animation for moved block
+          placedAt: Date.now(), // Trigger animation for moved block
         };
         setBlocks([...blocks, movedBlock]);
-        
+
         // Update position in database
         db.transact(
           db.tx.blocks[movedBlock.id].update({
             x,
             y,
-            z: 0
+            z: 0,
           })
-        ).catch(error => {
-          console.error('Failed to update block position in database:', error);
+        ).catch((error) => {
+          console.error("Failed to update block position in database:", error);
         });
       } else {
         // Position occupied, return block to original position
         setBlocks([...blocks, draggedBlock]);
       }
-      
+
       setIsDragging(false);
       setDraggedBlock(null);
     }
@@ -783,17 +1349,23 @@ const IsometricGarden: React.FC = () => {
     setHoveredBlock(null);
   };
 
-  const handleWheel = useCallback((e: React.WheelEvent) => {
-    e.preventDefault();
-    const zoomSpeed = 0.001;
-    const newZoom = Math.max(0.5, Math.min(3, camera.zoom - e.deltaY * zoomSpeed));
-    
-    if (newZoom !== camera.zoom) {
-      setCamera({ ...camera, zoom: newZoom });
-      // Clear grid cache when zooming
-      gridCacheRef.current = null;
-    }
-  }, [camera]);
+  const handleWheel = useCallback(
+    (e: React.WheelEvent) => {
+      e.preventDefault();
+      const zoomSpeed = 0.001;
+      const newZoom = Math.max(
+        0.5,
+        Math.min(3, camera.zoom - e.deltaY * zoomSpeed)
+      );
+
+      if (newZoom !== camera.zoom) {
+        setCamera({ ...camera, zoom: newZoom });
+        // Clear grid cache when zooming
+        gridCacheRef.current = null;
+      }
+    },
+    [camera]
+  );
 
   const handleContextMenu = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -810,7 +1382,7 @@ const IsometricGarden: React.FC = () => {
 
   const handleTouchStart = (e: React.TouchEvent) => {
     const touches = e.touches;
-    
+
     if (touches.length === 2) {
       // Two finger touch - prepare for pinch zoom
       const distance = getTouchDistance(touches);
@@ -821,18 +1393,20 @@ const IsometricGarden: React.FC = () => {
       const touch = touches[0];
       setTouchStartTime(Date.now());
       setLastTouchPosition({ x: touch.clientX, y: touch.clientY });
-      
+
       // Check if touching a block
       const { x, y } = screenToWorld(touch.clientX, touch.clientY);
-      const existingBlock = blocks.find(b => b.x === x && b.y === y && b.z === 0);
-      
+      const existingBlock = blocks.find(
+        (b) => b.x === x && b.y === y && b.z === 0
+      );
+
       if (existingBlock) {
         // Long press will allow dragging
         setTimeout(() => {
           if (Date.now() - touchStartTime > 500 && lastTouchPosition) {
             setIsTouchDragging(true);
             setDraggedBlock(existingBlock);
-            setBlocks(blocks.filter(b => b.id !== existingBlock.id));
+            setBlocks(blocks.filter((b) => b.id !== existingBlock.id));
           }
         }, 500);
       }
@@ -841,7 +1415,7 @@ const IsometricGarden: React.FC = () => {
 
   const handleTouchMove = (e: React.TouchEvent) => {
     const touches = e.touches;
-    
+
     if (touches.length === 2 && touchStartDistance !== null) {
       // Pinch zoom
       const currentDistance = getTouchDistance(touches);
@@ -854,7 +1428,7 @@ const IsometricGarden: React.FC = () => {
       e.preventDefault();
     } else if (touches.length === 1) {
       const touch = touches[0];
-      
+
       if (isTouchDragging && draggedBlock) {
         // Update hover position for dragging
         const { x, y } = screenToWorld(touch.clientX, touch.clientY);
@@ -863,14 +1437,14 @@ const IsometricGarden: React.FC = () => {
         // Pan the camera
         const deltaX = touch.clientX - lastTouchPosition.x;
         const deltaY = touch.clientY - lastTouchPosition.y;
-        
+
         // Only start panning if moved more than 10 pixels
         if (Math.abs(deltaX) > 10 || Math.abs(deltaY) > 10) {
           setIsPanning(true);
           setCamera({
             ...camera,
             x: camera.x + deltaX,
-            y: camera.y + deltaY
+            y: camera.y + deltaY,
           });
           setLastTouchPosition({ x: touch.clientX, y: touch.clientY });
         }
@@ -880,28 +1454,30 @@ const IsometricGarden: React.FC = () => {
 
   const handleTouchEnd = (e: React.TouchEvent) => {
     const touchDuration = Date.now() - touchStartTime;
-    
+
     if (isTouchDragging && draggedBlock && hoveredTile) {
       // Complete the drag
-      const existingBlock = blocks.find(b => b.x === hoveredTile.x && b.y === hoveredTile.y && b.z === 0);
-      
+      const existingBlock = blocks.find(
+        (b) => b.x === hoveredTile.x && b.y === hoveredTile.y && b.z === 0
+      );
+
       if (!existingBlock) {
         const movedBlock: Block = {
           ...draggedBlock,
           x: hoveredTile.x,
           y: hoveredTile.y,
-          placedAt: Date.now()
+          placedAt: Date.now(),
         };
         setBlocks([...blocks, movedBlock]);
-        
+
         db.transact(
           db.tx.blocks[movedBlock.id].update({
             x: hoveredTile.x,
             y: hoveredTile.y,
-            z: 0
+            z: 0,
           })
-        ).catch(error => {
-          console.error('Failed to update block position in database:', error);
+        ).catch((error) => {
+          console.error("Failed to update block position in database:", error);
         });
       } else {
         setBlocks([...blocks, draggedBlock]);
@@ -909,8 +1485,10 @@ const IsometricGarden: React.FC = () => {
     } else if (!isPanning && touchDuration < 300 && lastTouchPosition) {
       // Short tap - treat as click
       const { x, y } = screenToWorld(lastTouchPosition.x, lastTouchPosition.y);
-      const existingBlock = blocks.find(b => b.x === x && b.y === y && b.z === 0);
-      
+      const existingBlock = blocks.find(
+        (b) => b.x === x && b.y === y && b.z === 0
+      );
+
       if (existingBlock) {
         setSelectedBlock(existingBlock);
         setIsSlideoverOpen(true);
@@ -918,7 +1496,7 @@ const IsometricGarden: React.FC = () => {
         handlePlaceBlockFromInventory(x, y);
       }
     }
-    
+
     // Reset all touch states
     setTouchStartDistance(null);
     setTouchStartTime(0);
@@ -930,7 +1508,7 @@ const IsometricGarden: React.FC = () => {
   };
 
   const handleUpdateBlock = (blockId: string, updates: Partial<Block>) => {
-    setBlocks(blocks.map(b => b.id === blockId ? { ...b, ...updates } : b));
+    setBlocks(blocks.map((b) => (b.id === blockId ? { ...b, ...updates } : b)));
   };
 
   return (
@@ -938,9 +1516,11 @@ const IsometricGarden: React.FC = () => {
       <canvas
         ref={canvasRef}
         className={`absolute inset-0 ${
-          isDragging ? 'cursor-grabbing' : 
-          hoveredBlock ? 'cursor-grab' : 
-          'cursor-crosshair'
+          isDragging
+            ? "cursor-grabbing"
+            : hoveredBlock
+            ? "cursor-grab"
+            : "cursor-crosshair"
         }`}
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
@@ -952,19 +1532,24 @@ const IsometricGarden: React.FC = () => {
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
       />
-      
 
       {/* Selected Block Indicator */}
       {selectedInventoryBlock && (
         <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 bg-white rounded-lg shadow-lg p-3 flex items-center gap-2">
           <img
-            src={BLOCK_TYPES[selectedInventoryBlock as BlockTypeId]?.imagePath}
+            src={
+              getBlockDisplayImage(
+                BLOCK_TYPES[selectedInventoryBlock as BlockTypeId]
+              ) || ""
+            }
             alt="Selected block"
             className="w-8 h-8 pixelated"
           />
           <div className="text-sm">
             <div className="font-medium">Placing:</div>
-            <div className="text-xs text-gray-600">{BLOCK_TYPES[selectedInventoryBlock as BlockTypeId]?.name}</div>
+            <div className="text-xs text-gray-600">
+              {BLOCK_TYPES[selectedInventoryBlock as BlockTypeId]?.name}
+            </div>
           </div>
           <button
             onClick={() => setSelectedInventoryBlock(null)}
@@ -1031,7 +1616,6 @@ const IsometricGarden: React.FC = () => {
       </div> 
       */}
 
-
       {/* Block Slideover */}
       <BlockSlideover
         block={selectedBlock}
@@ -1051,6 +1635,16 @@ const IsometricGarden: React.FC = () => {
         onSelectBlockType={setSelectedInventoryBlock}
       />
 
+      {/* Dev Mode Panel - only in development */}
+      {isDevelopment && (
+        <DevModePanel
+          isOpen={isDevModeOpen}
+          onClose={() => setIsDevModeOpen(false)}
+          instantGrowth={instantGrowth}
+          onInstantGrowthChange={setInstantGrowth}
+        />
+      )}
+
       {/* Mobile Instructions Overlay */}
       {showMobileInstructions && (
         <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4">
@@ -1061,7 +1655,9 @@ const IsometricGarden: React.FC = () => {
                 <span className="text-lg">👆</span>
                 <div>
                   <p className="font-medium">Tap</p>
-                  <p className="text-gray-600">Select blocks or place from inventory</p>
+                  <p className="text-gray-600">
+                    Select blocks or place from inventory
+                  </p>
                 </div>
               </div>
               <div className="flex items-start gap-2">
@@ -1089,7 +1685,10 @@ const IsometricGarden: React.FC = () => {
             <button
               onClick={() => {
                 setShowMobileInstructions(false);
-                localStorage.setItem('growdoro_mobile_instructions_seen', 'true');
+                localStorage.setItem(
+                  "growdoro_mobile_instructions_seen",
+                  "true"
+                );
               }}
               className="mt-6 w-full bg-green-500 text-white py-2 px-4 rounded-lg font-medium hover:bg-green-600 transition-colors"
             >
@@ -1098,9 +1697,8 @@ const IsometricGarden: React.FC = () => {
           </div>
         </div>
       )}
-
     </div>
   );
 };
 
-export default IsometricGarden; 
+export default IsometricGarden;

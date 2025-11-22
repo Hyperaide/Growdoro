@@ -1,4 +1,4 @@
-import { BLOCK_TYPES, BlockTypeId, RARITY_COLORS } from "../constants/blocks";
+import { BLOCK_TYPES, BlockTypeId, RARITY_COLORS, getBlockDisplayImage } from "../constants/blocks";
 import { CrosshairSimpleIcon, DiamondIcon } from "@phosphor-icons/react";
 
 interface Block {
@@ -34,7 +34,7 @@ export default function BlockContent({block, isCard}: {block: Block, isCard?: bo
       <p className="font-mono text-[11px] text-gray-500">{block.x}X {block.y}Y {block.z}Z</p>
     </div> */}
 
-    <div className={`p-8 bg-gradient-to-b rounded-lg ${RARITY_COLORS[blockType.rarity].colorSubtle}`}><img src={blockType.imagePath} alt={blockType.name} className="w-full rounded-lg" /></div>
+    <div className={`p-8 bg-gradient-to-b rounded-lg ${RARITY_COLORS[blockType.rarity].colorSubtle}`}><img src={getBlockDisplayImage(blockType) || ''} alt={blockType.name} className="w-full rounded-lg" /></div>
 
     <div className="flex flex-col px-2">
       <h2 className="font-gowun-batang text-2xl font-bold text-gray-900">{blockType.name}</h2>

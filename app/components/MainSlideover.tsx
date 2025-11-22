@@ -19,7 +19,11 @@ import { motion, AnimatePresence } from "motion/react";
 import { useRef, useState, useEffect, useMemo, useCallback, memo } from "react";
 import { db } from "../../lib/db";
 import { id } from "@instantdb/react";
-import { BLOCK_TYPES, BlockTypeId } from "../constants/blocks";
+import {
+  BLOCK_TYPES,
+  BlockTypeId,
+  getBlockDisplayImage,
+} from "../constants/blocks";
 import PackOpeningModal from "./PackOpeningModal";
 import NumberFlow, { NumberFlowGroup } from "@number-flow/react";
 import { useAuth } from "../contexts/auth-context";
@@ -1819,7 +1823,7 @@ export default function MainSlideover({
                             >
                               <div className="relative">
                                 <img
-                                  src={blockType.imagePath}
+                                  src={getBlockDisplayImage(blockType) || ""}
                                   alt={blockType.name}
                                   className="w-16 h-16 mx-auto mb-2 pixelated"
                                 />
