@@ -24,6 +24,7 @@ import { id, InstaQLParams } from "@instantdb/react";
 import { XIcon } from "@phosphor-icons/react";
 import { DateTime } from "luxon";
 import { useAuth } from "../contexts/auth-context";
+import { useTheme } from "../contexts/theme-context";
 import AuthButton from "./AuthButton";
 import { AppSchema } from "@/instant.schema";
 import { imageCache } from "../../lib/image-cache";
@@ -78,6 +79,7 @@ const IsometricGarden: React.FC = () => {
 
   // Use auth context for session management
   const { user, sessionId } = useAuth();
+  const { theme } = useTheme();
   const effectiveSessionId = user?.id || sessionId;
 
   // Touch handling state
@@ -832,7 +834,10 @@ const IsometricGarden: React.FC = () => {
       }
 
       // Draw grid lines for reference (subtle)
-      ctx.strokeStyle = "rgba(55, 159, 233, 0.15)";
+      ctx.strokeStyle =
+        theme === "dark"
+          ? "rgba(255, 255, 255, 0.1)" // Dark mode grid color
+          : "rgba(55, 159, 233, 0.15)"; // Light mode grid color
       ctx.lineWidth = 1;
 
       // Calculate visible grid range
@@ -877,7 +882,7 @@ const IsometricGarden: React.FC = () => {
       );
       lastCameraRef.current = { ...camera };
     },
-    [camera, worldToScreen, windowDimensions]
+    [camera, worldToScreen, windowDimensions, theme]
   );
 
   // Render the scene - optimized version
@@ -991,6 +996,12 @@ const IsometricGarden: React.FC = () => {
   useEffect(() => {
     setNeedsRender(true);
   }, [blocks, camera, hoveredBlock, hoveredTile, isDragging, draggedBlock]);
+
+  // Clear grid cache when theme changes
+  useEffect(() => {
+    gridCacheRef.current = null;
+    setNeedsRender(true);
+  }, [theme]);
 
   // Check for animation updates
   useEffect(() => {

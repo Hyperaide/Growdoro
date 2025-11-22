@@ -88,7 +88,7 @@ export default function BlockSlideover({
       animate={{ x: isOpen ? 0 : "100%" }}
       transition={{ duration: 0.2, ease: "easeInOut" }}
       ref={slideoverRef}
-      className={`fixed right-2 bottom-2 top-2 w-80 h-max max-h-dvh overflow-y-auto bg-white rounded-xl strong-shadow z-50 p-2 ${
+      className={`fixed right-2 bottom-2 top-2 w-80 h-max max-h-dvh overflow-y-auto bg-white dark:bg-neutral-900 dark:border border-neutral-200 dark:border-neutral-800 rounded-xl strong-shadow z-50 p-2 ${
         isOpen ? "translate-x-0" : "translate-x-full"
       }`}
       onClick={(e) => e.stopPropagation()}
@@ -116,7 +116,7 @@ export default function BlockSlideover({
         </div>
 
         <div className="flex flex-col px-2">
-          <h2 className="font-barlow text-2xl font-semibold text-neutral-900">
+          <h2 className="font-barlow text-2xl font-semibold text-neutral-900 dark:text-neutral-200">
             {blockType.name}
           </h2>
           {blockType.latinName && (
@@ -125,7 +125,7 @@ export default function BlockSlideover({
             </p>
           )}
           {blockType.blurb && (
-            <p className="text-sm font-barlow my-2 text-neutral-400">
+            <p className="text-sm font-barlow my-2 text-neutral-400 dark:text-neutral-600">
               {blockType.blurb}
             </p>
           )}
@@ -143,7 +143,10 @@ export default function BlockSlideover({
             </p>
           </div>
           <div className="flex flex-row items-center gap-1">
-            <CrosshairSimpleIcon size={12} className="text-neutral-800" />
+            <CrosshairSimpleIcon
+              size={12}
+              className="text-neutral-800 dark:text-neutral-200"
+            />
             <p className="font-barlow text-xs font-semibold uppercase text-neutral-500">
               {block.x}X {block.y}Y {block.z}Z
             </p>
@@ -153,14 +156,14 @@ export default function BlockSlideover({
         <div className="flex flex-row px-2">
           <div className="flex flex-col gap-2 w-full">
             <div className="flex flex-row gap-2 items-center justify-between">
-              <p className="font-barlow text-[11px] uppercase font-medium text-gray-500">
+              <p className="font-barlow text-[11px] uppercase font-medium text-neutral-500">
                 Growth Time
               </p>
-              <p className="font-barlow text-[11px] uppercase text-gray-500">
+              <p className="font-barlow text-[11px] uppercase text-neutral-500">
                 {blockType.growthTime} days
               </p>
             </div>
-            <div className="h-2 w-full bg-gray-100 rounded-full">
+            <div className="h-2 w-full bg-neutral-100 dark:bg-neutral-800 rounded-full">
               {(() => {
                 // Calculate growth progress
                 let growthPercentage = 0;
@@ -178,7 +181,7 @@ export default function BlockSlideover({
                 }
                 return (
                   <div
-                    className="h-full bg-gradient-to-l from-green-500 to-gray-100 rounded-full"
+                    className="h-full bg-gradient-to-l from-green-500 to-neutral-100 dark:to-neutral-800 rounded-full"
                     style={{ width: `${growthPercentage}%` }}
                   ></div>
                 );

@@ -5,6 +5,8 @@
 @import "@radix-ui/colors/blue.css";
 @import "@radix-ui/colors/green.css";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -79,6 +81,11 @@
     0 1px 2px rgba(0, 0, 0, 0.03);
 }
 
+.dark .strong-shadow {
+  box-shadow: none;
+  -webkit-box-shadow: none;
+}
+
 
 .pixelated {
   image-rendering: pixelated;
@@ -121,11 +128,16 @@
   margin-top: -8px;
 }
 
+.dark .slider::-webkit-slider-thumb {
+  background: var(--color-neutral-800);
+}
+
 .slider::-webkit-slider-thumb:hover {
   border-color: #059669;
   transform: scale(1.1);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
 }
+
 
 .slider::-webkit-slider-thumb:active {
   transform: scale(0.95);
@@ -141,6 +153,10 @@
   border: 3px solid #10b981;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
   transition: all 0.2s ease;
+}
+
+.dark .slider::-moz-range-thumb {
+  background: var(--color-neutral-800);
 }
 
 .slider::-moz-range-thumb:hover {
@@ -161,6 +177,10 @@
   transition: background 0.2s ease;
 }
 
+.dark .slider::-webkit-slider-runnable-track {
+  background: var(--color-neutral-800);
+}
+
 .slider::-moz-range-track {
   background: #e5e7eb;
   height: 8px;
@@ -168,12 +188,24 @@
   transition: background 0.2s ease;
 }
 
+.dark .slider::-moz-range-track {
+  background: var(--color-neutral-800);
+}
+
 .slider:hover::-webkit-slider-runnable-track {
   background: #d1d5db;
 }
 
+.dark .slider:hover::-webkit-slider-runnable-track {
+  background: var(--color-neutral-800);
+}
+
 .slider:hover::-moz-range-track {
   background: #d1d5db;
+}
+
+.dark .slider:hover::-moz-range-track {
+  background: var(--color-neutral-800);
 }
 
 /* Break timer slider - blue thumb ring */

@@ -337,19 +337,19 @@ export const BLOCK_TYPES: Record<string, BlockType> = {
 
 export const RARITY_COLORS = {
   common: {
-    colorSubtle: 'from-gray-100 to-white',
+    colorSubtle: 'from-neutral-100 to-white dark:from-neutral-800 dark:to-neutral-900',
     colorBold: 'text-gray-500',
   },
   uncommon: {
-    colorSubtle: 'from-green-100 to-white',
+    colorSubtle: 'from-green-100 to-white dark:from-green-900 dark:to-neutral-900',
     colorBold: 'text-green-500',
   },
   rare: {
-    colorSubtle: 'from-blue-100 to-white',
+    colorSubtle: 'from-blue-100 to-white dark:from-blue-900 dark:to-neutral-900',
     colorBold: 'text-blue-500',
   },
   legendary: {
-    colorSubtle: 'from-purple-200 to-white',
+    colorSubtle: 'from-purple-200 to-white dark:from-purple-900 dark:to-neutral-900',
     colorBold: 'text-purple-500',
   }
 };

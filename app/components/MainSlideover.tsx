@@ -32,6 +32,8 @@ import AuthButton from "./AuthButton";
 import { DateTime } from "luxon";
 import { UPDATES } from "../constants/updates";
 import AboutTab from "./AboutTab";
+import ThemeToggle from "./ThemeToggle";
+import { useTheme } from "../contexts/theme-context";
 
 interface MainSlideoverProps {
   isOpen: boolean;
@@ -80,7 +82,7 @@ const TimerDisplay = memo(({ remainingTime }: { remainingTime: number }) => {
   const secs = Math.floor(remainingTime % 60);
 
   return (
-    <div className="text-4xl font-barlow font-bold text-gray-800">
+    <div className="text-4xl font-barlow font-bold text-neutral-800 dark:text-neutral-200">
       <NumberFlowGroup>
         <div
           style={
@@ -191,11 +193,11 @@ const SupporterTab = memo(({ profile }: { profile: any }) => {
     <div className="flex-1 overflow-y-auto p-2">
       <div className="space-y-4">
         <div className="rounded-lg gap-1 flex flex-col">
-          <h3 className="font-semibold text-neutral-800 flex flex-row items-center gap-2 text-sm">
+          <h3 className="font-semibold text-neutral-800 dark:text-neutral-200 flex flex-row items-center gap-2 text-sm">
             <SparkleIcon size={16} weight="fill" className="text-green-600" />
             Free Forever
           </h3>
-          <p className="text-neutral-600 text-xs">
+          <p className="text-neutral-600 dark:text-neutral-400 text-xs">
             Growdoro will always be free to use. Enjoy unlimited pomodoro
             sessions and grow your infinite garden.
           </p>
@@ -204,21 +206,21 @@ const SupporterTab = memo(({ profile }: { profile: any }) => {
         {isSupporter ? (
           // Supporter Management UI
           <div className="space-y-4">
-            <div className="bg-sky-50 border border-sky-200 rounded-lg p-3">
-              <h3 className="font-semibold text-neutral-800 mb-2 flex items-center gap-2 text-sm">
+            <div className="bg-sky-50 dark:bg-sky-900 border border-sky-200 dark:border-sky-800 rounded-lg p-3">
+              <h3 className="font-semibold text-neutral-800 dark:text-neutral-200 mb-2 flex items-center gap-2 text-sm">
                 <SealCheckIcon
                   size={16}
                   weight="fill"
-                  className="text-sky-600"
+                  className="text-sky-600 dark:text-sky-200"
                 />
                 Supporter Status
               </h3>
               <div className="space-y-2">
-                <div className="text-xs text-neutral-600">
+                <div className="text-xs text-neutral-600 dark:text-neutral-400">
                   <span className="font-medium">Status:</span> Active Supporter
                 </div>
                 {supporterUntil && (
-                  <div className="text-xs text-neutral-600">
+                  <div className="text-xs text-neutral-600 dark:text-neutral-400">
                     <span className="font-medium">Renews:</span>{" "}
                     {DateTime.fromISO(supporterUntil).toLocaleString(
                       DateTime.DATE_MED
@@ -226,7 +228,7 @@ const SupporterTab = memo(({ profile }: { profile: any }) => {
                   </div>
                 )}
                 {cancelAtPeriodEnd && (
-                  <div className="text-xs text-amber-600 bg-amber-50 p-2 rounded border border-amber-200">
+                  <div className="text-xs text-amber-600 bg-amber-50 dark:bg-amber-900 p-2 rounded border border-amber-200 dark:border-amber-800">
                     <span className="font-medium">
                       Subscription will be cancelled
                     </span>{" "}
@@ -236,11 +238,11 @@ const SupporterTab = memo(({ profile }: { profile: any }) => {
               </div>
             </div>
 
-            <div className="bg-neutral-50 border border-neutral-200 rounded-lg p-3">
-              <h4 className="font-medium text-neutral-800 text-xs mb-2">
+            <div className="bg-neutral-50 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-800 rounded-lg p-3">
+              <h4 className="font-medium text-neutral-800 dark:text-neutral-200 text-xs mb-2">
                 Supporter Benefits
               </h4>
-              <ul className="text-xs text-neutral-600 space-y-1">
+              <ul className="text-xs text-neutral-600 dark:text-neutral-400 space-y-1">
                 <li>• Early access to new features</li>
                 <li>• Exclusive plants and decorations</li>
                 <li>• 4 exclusive decoration blocks per year</li>
@@ -248,12 +250,12 @@ const SupporterTab = memo(({ profile }: { profile: any }) => {
               </ul>
             </div>
 
-            <div className="border-t pt-4 border-dashed border-neutral-200">
+            <div className="border-t pt-4 border-dashed border-neutral-200 dark:border-neutral-800">
               {cancelAtPeriodEnd ? (
                 <button
                   onClick={handleReactivateSubscription}
                   disabled={isReactivating}
-                  className="w-full text-xs flex flex-row items-center justify-center gap-2 font-medium text-center bg-green-100 text-green-700 px-4 py-3 rounded-lg hover:bg-green-200 transition-colors border border-green-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full text-xs flex flex-row items-center justify-center gap-2 font-medium text-center bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-200 px-4 py-3 rounded-lg hover:bg-green-200 dark:hover:bg-green-800 transition-colors border border-green-200 dark:border-green-800 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isReactivating
                     ? "Reactivating..."
@@ -262,7 +264,7 @@ const SupporterTab = memo(({ profile }: { profile: any }) => {
               ) : (
                 <button
                   onClick={() => setShowCancelConfirm(true)}
-                  className="w-full text-xs flex flex-row items-center justify-center gap-2 font-medium text-center bg-red-100 text-red-700 px-4 py-3 rounded-lg hover:bg-red-200 transition-colors border border-red-200"
+                  className="w-full text-xs flex flex-row items-center justify-center gap-2 font-medium text-center bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-200 px-4 py-3 rounded-lg hover:bg-red-200 dark:hover:bg-red-800 transition-colors border border-red-200 dark:border-red-800"
                 >
                   Cancel Subscription
                 </button>
@@ -387,8 +389,8 @@ const TabItem = memo(
       <button
         className={`flex flex-row items-center gap-1 px-2 py-1 rounded-md transition-colors ${
           isActive
-            ? "bg-neutral-200 text-neutral-950"
-            : "bg-transparent hover:bg-neutral-100 text-neutral-600"
+            ? "bg-neutral-200 text-neutral-900 dark:text-neutral-100 dark:bg-neutral-800"
+            : "bg-transparent hover:bg-neutral-100 text-neutral-600 dark:text-neutral-400 dark:hover:bg-neutral-800"
         }`}
         onClick={onClick}
       >
@@ -432,6 +434,8 @@ const Tabs = memo(
       sessions.filter((s) => s.completedAt && !s.rewardsClaimedAt).length > 0;
 
     const hasBlocks = Object.keys(blockInventory).length > 0;
+
+    const { theme, toggleTheme } = useTheme();
 
     return (
       <div className="flex flex-row justify-between items-start">
@@ -504,6 +508,15 @@ const Tabs = memo(
               fontFamily="mono"
             />
           )}
+
+          <TabItem
+            id="theme"
+            label={theme === "light" ? "Night Mode" : "Day Mode"}
+            activeTab={null}
+            onClick={() => {
+              toggleTheme();
+            }}
+          />
         </div>
 
         <button
@@ -1074,7 +1087,7 @@ export default function MainSlideover({
           type: "tween",
         }}
         ref={mainSlideoverRef}
-        className={`fixed left-2 top-2 overflow-y-auto bg-white backdrop-blur-md rounded-xl strong-shadow z-50`}
+        className={`fixed left-2 top-2 overflow-y-auto bg-white dark:bg-neutral-900 dark:border border-neutral-200 dark:border-neutral-800 backdrop-blur-md rounded-xl strong-shadow z-50`}
         style={{
           width: "100%",
           maxWidth: "24rem",
@@ -1089,18 +1102,21 @@ export default function MainSlideover({
           className="flex flex-col divide-y divide-dashed divide-neutral-200"
           style={{ height: "100%" }}
         >
-          <div className="p-4 sticky top-0 bg-white z-50">
+          <div className="p-4 sticky top-0 bg-white dark:bg-neutral-900 dark:border-neutral-800 z-50">
             <div className="flex flex-row justify-between items-start font-barlow mb-2">
               <div className="flex flex-col p-1 rounded-md">
-                <h1 className="text-sm font-semibold text-olive-12">
+                <h1 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
                   {currentTime}
                 </h1>
-                <p className="text-sm font-medium text-olive-11">
+                <p className="text-sm font-medium text-neutral-900 dark:text-neutral-500">
                   {currentDate}
                 </p>
               </div>
 
-              <AuthButton />
+              <div className="flex items-center gap-2">
+                {/* <ThemeToggle /> */}
+                <AuthButton />
+              </div>
 
               {/* {activeTab !== null && (
               <button
@@ -1141,13 +1157,13 @@ export default function MainSlideover({
                       {!activeSession ? (
                         <>
                           {/* Timer Mode Selector */}
-                          <div className="flex gap-1 p-1 bg-neutral-100 rounded-lg">
+                          <div className="flex gap-1 p-1 bg-neutral-100 dark:bg-neutral-800 rounded-lg">
                             <button
                               onClick={() => setTimerMode("focus")}
                               className={`flex-1 px-3 py-2 rounded-md text-xs font-medium font-mono uppercase transition-colors cursor-pointer ${
                                 timerMode === "focus"
                                   ? "bg-green-600 text-white"
-                                  : "text-neutral-600 hover:bg-neutral-200"
+                                  : "text-neutral-600 hover:bg-neutral-200 dark:text-neutral-400 dark:hover:bg-neutral-700"
                               }`}
                             >
                               Focus
@@ -1157,7 +1173,7 @@ export default function MainSlideover({
                               className={`flex-1 px-3 py-2 rounded-md text-xs font-medium font-mono uppercase transition-colors cursor-pointer ${
                                 timerMode === "break"
                                   ? "bg-blue-600 text-white"
-                                  : "text-neutral-600 hover:bg-neutral-200"
+                                  : "text-neutral-600 hover:bg-neutral-200 dark:text-neutral-400 dark:hover:bg-neutral-700"
                               }`}
                             >
                               Break
@@ -1166,13 +1182,13 @@ export default function MainSlideover({
 
                           <div className="space-y-3">
                             <div className="flex items-center justify-between">
-                              <span className="text-xs text-gray-600 font-barlow font-semibold uppercase">
+                              <span className="text-xs text-neutral-900 dark:text-neutral-200 font-barlow font-semibold uppercase">
                                 Duration
                               </span>
                               <NumberFlow
                                 value={timerMinutes}
                                 suffix=" MIN"
-                                className="text-sm font-semibold font-barlow text-gray-800"
+                                className="text-sm font-semibold font-barlow text-neutral-900 dark:text-neutral-200"
                               />
                             </div>
                             <div className="relative">
@@ -1185,7 +1201,7 @@ export default function MainSlideover({
                                 onChange={(e) =>
                                   setTimerMinutes(parseInt(e.target.value))
                                 }
-                                className={`w-full h-2 bg-gray-100 rounded-lg appearance-none cursor-pointer slider ${
+                                className={`w-full h-2 bg-neutral-100 dark:bg-neutral-800 rounded-lg appearance-none cursor-pointer slider ${
                                   timerMode === "break" ? "slider-break" : ""
                                 }`}
                                 style={{
@@ -1204,7 +1220,7 @@ export default function MainSlideover({
                                 }}
                               />
                             </div>
-                            <div className="flex justify-between text-xs font-barlow font-medium text-gray-500">
+                            <div className="flex justify-between text-xs font-barlow font-medium text-neutral-500 dark:text-neutral-500">
                               {timerMode === "break" ? (
                                 <>
                                   <span>1</span>
@@ -1226,7 +1242,7 @@ export default function MainSlideover({
 
                           {/* Quick Presets */}
                           <div className="space-y-2 mt-4">
-                            <div className="text-xs text-gray-600 font-barlow font-semibold uppercase">
+                            <div className="text-xs text-neutral-900 dark:text-neutral-200 font-barlow font-semibold uppercase">
                               Quick Select
                             </div>
                             <div className="flex flex-wrap gap-2">
@@ -1239,7 +1255,7 @@ export default function MainSlideover({
                                       className={`px-3 py-1.5 rounded-md text-sm font-medium font-barlow transition-colors ${
                                         timerMinutes === mins
                                           ? "bg-blue-600 text-white"
-                                          : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                                          : "bg-neutral-100 dark:bg-neutral-800 text-neutral-900 dark:text-neutral-200 hover:bg-neutral-200 dark:hover:bg-neutral-700"
                                       }`}
                                     >
                                       {mins} {mins === 1 ? "min" : "mins"}
@@ -1255,7 +1271,7 @@ export default function MainSlideover({
                                       className={`px-3 py-1.5 rounded-md text-sm font-medium font-barlow transition-colors ${
                                         timerMinutes === mins
                                           ? "bg-green-600 text-white"
-                                          : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                                          : "bg-neutral-100 dark:bg-neutral-800 text-neutral-900 dark:text-neutral-200 hover:bg-neutral-200 dark:hover:bg-neutral-700"
                                       }`}
                                     >
                                       {mins} {mins === 1 ? "min" : "mins"}
@@ -1291,12 +1307,12 @@ export default function MainSlideover({
                                       setTimerMinutes(clamped);
                                     }
                                   }}
-                                  className="flex-1 w-full px-3 py-2 border border-gray-300 rounded-l-lg text-sm focus:outline-none border-r-0 focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                                  className="flex-1 w-full px-3 py-2 border border-neutral-300 dark:border-neutral-700 rounded-l-lg text-sm focus:outline-none border-r-0 focus:ring-2 focus:ring-green-500 focus:border-transparent dark:bg-neutral-800 dark:text-neutral-200"
                                   placeholder={`${
                                     timerMode === "break" ? "1-15" : "5-120"
                                   } minutes`}
                                 />
-                                <span className="text-xs shrink-0 flex items-center justify-center text-gray-500 font-medium border border-l-0 border-gray-300 rounded-r-lg px-2">
+                                <span className="text-xs shrink-0 flex items-center justify-center text-neutral-500 dark:text-neutral-500 font-medium border border-l-0 border-neutral-300 dark:border-neutral-700 rounded-r-lg px-2 dark:bg-neutral-800 dark:text-neutral-200">
                                   min
                                 </span>
                               </div>
@@ -1381,7 +1397,7 @@ export default function MainSlideover({
                               <div className="flex gap-2">
                                 <button
                                   onClick={pauseTimer}
-                                  className="flex-1 text-sm font-medium bg-blue-100 text-blue-500 px-4 py-2 rounded-lg hover:bg-blue-500 hover:text-white transition-colors flex items-center justify-center gap-2"
+                                  className="flex-1 text-sm font-medium bg-blue-100 dark:bg-blue-900 text-blue-500 dark:text-blue-200 px-4 py-2 rounded-lg hover:bg-blue-500 hover:text-white dark:hover:bg-blue-800 dark:hover:text-blue-200 transition-colors flex items-center justify-center gap-2"
                                   disabled={!!activeSession.completedAt}
                                 >
                                   {isPaused ? (
@@ -1398,7 +1414,7 @@ export default function MainSlideover({
                                 </button>
                                 <button
                                   onClick={cancelTimer}
-                                  className="flex-1 text-sm font-medium bg-red-100 text-red-500 px-4 py-2 rounded-lg hover:bg-red-500 hover:text-white transition-colors"
+                                  className="flex-1 text-sm font-medium bg-red-100 dark:bg-red-900 text-red-500 dark:text-red-200 px-4 py-2 rounded-lg hover:bg-red-500 hover:text-white dark:hover:bg-red-800 dark:hover:text-red-200 transition-colors"
                                 >
                                   Cancel
                                 </button>
@@ -1558,13 +1574,15 @@ export default function MainSlideover({
                     ) : (
                       <>
                         {sessionsWithUnclaimedRewards.length === 0 ? (
-                          <div className="text-sm text-gray-500 text-center py-8">
+                          <div className="text-sm text-neutral-500  text-center py-8">
                             <PackageIcon
                               size={24}
-                              className="mx-auto mb-2 text-gray-400"
+                              className="mx-auto mb-2 text-neutral-400 dark:text-neutral-600"
                             />
-                            <p>No packs to open!</p>
-                            <p className="text-xs mt-1">
+                            <p className="text-neutral-600 dark:text-neutral-400">
+                              No packs to open!
+                            </p>
+                            <p className="text-xs mt-1 text-neutral-600 dark:text-neutral-400">
                               Complete timers to earn packs
                             </p>
                           </div>
@@ -1585,18 +1603,18 @@ export default function MainSlideover({
                                       claimReward(session as Session)
                                     }
                                     disabled={claimingReward}
-                                    className="relative bg-gradient-to-br from-amber-100 to-yellow-50 rounded-md overflow-hidden border-2 border-amber-300 transition-all transform hover:scale-110 hover:shadow-lg group hover:rotate-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                                    className="relative bg-gradient-to-br from-amber-100 to-yellow-50 dark:from-amber-900 dark:to-amber-800 rounded-md overflow-hidden border-2 border-amber-300 dark:border-amber-800 transition-all transform hover:scale-110 hover:shadow-lg group hover:rotate-2 disabled:opacity-50 disabled:cursor-not-allowed"
                                     style={{ aspectRatio: "3/4" }}
                                   >
                                     {/* Top tear strip */}
                                     <div
-                                      className="absolute top-0 left-0 right-0 h-3 bg-amber-400 border-b border-amber-500"
+                                      className="absolute top-0 left-0 right-0 h-3 bg-amber-400 dark:bg-amber-600 border-b border-amber-500 dark:border-amber-800"
                                       style={{
                                         backgroundImage:
                                           "repeating-linear-gradient(45deg, transparent, transparent 3px, rgba(0,0,0,0.1) 3px, rgba(0,0,0,0.1) 6px)",
                                       }}
                                     >
-                                      <div className="absolute top-0.5 left-2 text-[6px] font-mono text-amber-800">
+                                      <div className="absolute top-0.5 left-2 text-[6px] font-mono text-amber-800 dark:text-amber-200">
                                         TEAR HERE
                                       </div>
                                     </div>
@@ -1606,16 +1624,16 @@ export default function MainSlideover({
                                       {/* Header */}
                                       <div>
                                         <div className="text-center mb-2">
-                                          <h3 className="text-[10px] font-mono text-amber-900 font-bold">
+                                          <h3 className="text-[10px] font-mono text-amber-900 dark:text-amber-200 font-bold">
                                             GARDEN GROVE CO.
                                           </h3>
-                                          <p className="text-[8px] text-amber-700">
+                                          <p className="text-[8px] text-amber-700 dark:text-amber-300">
                                             Premium Seeds Since 2024
                                           </p>
                                         </div>
 
                                         {/* Product name */}
-                                        <div className="bg-green-700 text-white py-1 px-2 rounded-sm mb-2">
+                                        <div className="bg-green-700 text-white dark:text-green-200 py-1 px-2 rounded-sm mb-2">
                                           <p className="text-xs font-bold text-center">
                                             MYSTERY PACK
                                           </p>
@@ -1636,7 +1654,7 @@ export default function MainSlideover({
                                       {/* Bottom section */}
                                       <div>
                                         {/* Growing instructions */}
-                                        <div className="text-[7px] text-amber-800 mb-2 leading-tight">
+                                        <div className="text-[7px] text-amber-800 dark:text-amber-200 mb-2 leading-tight">
                                           <p className="font-bold">
                                             PLANTING INSTRUCTIONS:
                                           </p>
@@ -1646,151 +1664,151 @@ export default function MainSlideover({
                                         </div>
 
                                         {/* Barcode */}
-                                        <div className="bg-white p-1 rounded-sm border border-gray-300">
+                                        <div className="bg-white dark:bg-neutral-800 p-1 rounded-sm border border-gray-300 dark:border-neutral-800">
                                           <div className="flex items-end justify-center gap-0.5">
                                             {/* Static barcode pattern */}
                                             <div
-                                              className="bg-black"
+                                              className="bg-black dark:bg-neutral-200"
                                               style={{
                                                 width: "2px",
                                                 height: "16px",
                                               }}
                                             />
                                             <div
-                                              className="bg-black"
+                                              className="bg-black dark:bg-neutral-200"
                                               style={{
                                                 width: "1px",
                                                 height: "16px",
                                               }}
                                             />
                                             <div
-                                              className="bg-black"
+                                              className="bg-black dark:bg-neutral-200"
                                               style={{
                                                 width: "1px",
                                                 height: "16px",
                                               }}
                                             />
                                             <div
-                                              className="bg-black"
+                                              className="bg-black dark:bg-neutral-200"
                                               style={{
                                                 width: "2px",
                                                 height: "16px",
                                               }}
                                             />
                                             <div
-                                              className="bg-black"
+                                              className="bg-black dark:bg-neutral-200"
                                               style={{
                                                 width: "1px",
                                                 height: "16px",
                                               }}
                                             />
                                             <div
-                                              className="bg-black"
+                                              className="bg-black dark:bg-neutral-200"
                                               style={{
                                                 width: "2px",
                                                 height: "16px",
                                               }}
                                             />
                                             <div
-                                              className="bg-black"
+                                              className="bg-black dark:bg-neutral-200"
                                               style={{
                                                 width: "2px",
                                                 height: "16px",
                                               }}
                                             />
                                             <div
-                                              className="bg-black"
+                                              className="bg-black dark:bg-neutral-200"
                                               style={{
                                                 width: "1px",
                                                 height: "16px",
                                               }}
                                             />
                                             <div
-                                              className="bg-black"
+                                              className="bg-black dark:bg-neutral-200"
                                               style={{
                                                 width: "1px",
                                                 height: "16px",
                                               }}
                                             />
                                             <div
-                                              className="bg-black"
+                                              className="bg-black dark:bg-neutral-200"
                                               style={{
                                                 width: "1px",
                                                 height: "16px",
                                               }}
                                             />
                                             <div
-                                              className="bg-black"
+                                              className="bg-black dark:bg-neutral-200"
                                               style={{
                                                 width: "2px",
                                                 height: "16px",
                                               }}
                                             />
                                             <div
-                                              className="bg-black"
+                                              className="bg-black dark:bg-neutral-200"
                                               style={{
                                                 width: "1px",
                                                 height: "16px",
                                               }}
                                             />
                                             <div
-                                              className="bg-black"
+                                              className="bg-black dark:bg-neutral-200"
                                               style={{
                                                 width: "2px",
                                                 height: "16px",
                                               }}
                                             />
                                             <div
-                                              className="bg-black"
+                                              className="bg-black dark:bg-neutral-200"
                                               style={{
                                                 width: "1px",
                                                 height: "16px",
                                               }}
                                             />
                                             <div
-                                              className="bg-black"
+                                              className="bg-black dark:bg-neutral-200"
                                               style={{
                                                 width: "1px",
                                                 height: "16px",
                                               }}
                                             />
                                             <div
-                                              className="bg-black"
+                                              className="bg-black dark:bg-neutral-200"
                                               style={{
                                                 width: "2px",
                                                 height: "16px",
                                               }}
                                             />
                                             <div
-                                              className="bg-black"
+                                              className="bg-black dark:bg-neutral-200"
                                               style={{
                                                 width: "1px",
                                                 height: "16px",
                                               }}
                                             />
                                             <div
-                                              className="bg-black"
+                                              className="bg-black dark:bg-neutral-200"
                                               style={{
                                                 width: "2px",
                                                 height: "16px",
                                               }}
                                             />
                                             <div
-                                              className="bg-black"
+                                              className="bg-black dark:bg-neutral-200"
                                               style={{
                                                 width: "1px",
                                                 height: "16px",
                                               }}
                                             />
                                             <div
-                                              className="bg-black"
+                                              className="bg-black dark:bg-neutral-200"
                                               style={{
                                                 width: "2px",
                                                 height: "16px",
                                               }}
                                             />
                                           </div>
-                                          <p className="text-[6px] text-center mt-0.5 font-mono">
+                                          <p className="text-[6px] text-center mt-0.5 font-mono text-neutral-800 dark:text-neutral-200">
                                             {session.id
                                               .substring(0, 12)
                                               .toUpperCase()}
@@ -1799,10 +1817,10 @@ export default function MainSlideover({
 
                                         {/* Bottom details */}
                                         <div className="flex justify-between items-center mt-1">
-                                          <p className="text-[6px] text-amber-700">
+                                          <p className="text-[6px] text-amber-700 dark:text-amber-300">
                                             LOT #2847
                                           </p>
-                                          <p className="text-[6px] text-amber-700">
+                                          <p className="text-[6px] text-amber-700 dark:text-amber-300">
                                             NET WT. {packSize * 0.5}g
                                           </p>
                                         </div>
@@ -1858,7 +1876,7 @@ export default function MainSlideover({
                           return (
                             <div
                               key={type}
-                              className="bg-gray-50 rounded-lg p-3 text-center hover:bg-gray-100 transition-colors cursor-pointer"
+                              className="bg-neutral-50 dark:bg-neutral-800 rounded-lg p-3 text-center hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors cursor-pointer"
                               onClick={() => {
                                 if (onSelectBlockType) {
                                   onSelectBlockType(type);
@@ -1872,14 +1890,14 @@ export default function MainSlideover({
                                   alt={blockType.name}
                                   className="w-16 h-16 mx-auto mb-2 pixelated"
                                 />
-                                <span className="absolute top-0 right-0 bg-green-600 text-white text-xs px-1.5 py-0.5 rounded">
+                                <span className="absolute top-0 right-0 bg-green-600 text-white  text-xs px-1.5 py-0.5 rounded">
                                   {count}
                                 </span>
                               </div>
-                              <div className="text-xs font-medium text-gray-700">
+                              <div className="text-xs font-medium text-neutral-700 dark:text-neutral-300">
                                 {blockType.name}
                               </div>
-                              <div className="text-[10px] text-gray-500 mt-1 font-mono uppercase font-medium">
+                              <div className="text-[10px] text-neutral-500 dark:text-neutral-400 mt-1 uppercase font-semibold">
                                 Click to place
                               </div>
                             </div>
@@ -1900,15 +1918,15 @@ export default function MainSlideover({
                       ).map((update) => (
                         <div
                           key={update.id}
-                          className="bg-gray-50 rounded-lg p-3"
+                          className="bg-neutral-50 dark:bg-neutral-900 rounded-lg p-3"
                         >
-                          <h4 className="text-sm font-barlow font-semibold text-gray-800 mb-1">
+                          <h4 className="text-sm font-barlow font-semibold text-neutral-800 dark:text-neutral-200 mb-1">
                             {update.title}
                           </h4>
-                          <p className="text-sm text-gray-600 leading-relaxed">
+                          <p className="text-sm text-neutral-600 dark:text-neutral-400 leading-relaxed">
                             {update.description}
                           </p>
-                          <p className="text-xs text-gray-400 leading-relaxed mt-1">
+                          <p className="text-xs text-neutral-400 dark:text-neutral-500 leading-relaxed mt-1">
                             {DateTime.fromISO(update.date).toRelative()}
                           </p>
                         </div>
@@ -1922,16 +1940,16 @@ export default function MainSlideover({
                   <div className="flex-1 overflow-y-auto">
                     <div className="space-y-4">
                       <div className="space-y-2">
-                        <div className="bg-gray-50 rounded-lg p-3">
+                        <div className="bg-neutral-50 dark:bg-neutral-900 rounded-lg p-3">
                           <div className="flex items-start gap-2">
-                            <span className="text-sm font-barlow font-semibold text-gray-400">
+                            <span className="text-sm font-barlow font-semibold text-neutral-400 dark:text-neutral-500">
                               01
                             </span>
                             <div className="flex-1">
-                              <h4 className="text-sm font-barlow font-semibold text-gray-800 mb-1">
+                              <h4 className="text-sm font-barlow font-semibold text-neutral-800 dark:text-neutral-200 mb-1">
                                 SET TIMER
                               </h4>
-                              <p className="text-xs text-gray-600 leading-relaxed">
+                              <p className="text-xs text-neutral-600 dark:text-neutral-400 leading-relaxed">
                                 Choose a duration between 5-60 minutes for your
                                 focus session. Stay focused to complete the
                                 session.
@@ -1940,16 +1958,16 @@ export default function MainSlideover({
                           </div>
                         </div>
 
-                        <div className="bg-gray-50 rounded-lg p-3">
+                        <div className="bg-neutral-50 dark:bg-neutral-900 rounded-lg p-3">
                           <div className="flex items-start gap-2">
-                            <span className="text-sm font-barlow font-semibold text-gray-400">
+                            <span className="text-sm font-barlow font-semibold text-neutral-400 dark:text-neutral-500">
                               02
                             </span>
                             <div className="flex-1">
-                              <h4 className="text-sm font-barlow font-semibold text-gray-800 mb-1">
+                              <h4 className="text-sm font-barlow font-semibold text-neutral-800 dark:text-neutral-200 mb-1">
                                 EARN PACKS
                               </h4>
-                              <p className="text-xs text-gray-600 leading-relaxed">
+                              <p className="text-xs text-neutral-600 dark:text-neutral-400 leading-relaxed">
                                 Complete sessions to earn seed packs. Sessions
                                 under 60 minutes give 3 seeds, 60+ minutes give
                                 6 seeds.
@@ -1958,16 +1976,16 @@ export default function MainSlideover({
                           </div>
                         </div>
 
-                        <div className="bg-gray-50 rounded-lg p-3">
+                        <div className="bg-neutral-50 dark:bg-neutral-900 rounded-lg p-3">
                           <div className="flex items-start gap-2">
-                            <span className="text-sm font-barlow font-semibold text-gray-400">
+                            <span className="text-sm font-barlow font-semibold text-neutral-400 dark:text-neutral-500">
                               03
                             </span>
                             <div className="flex-1">
-                              <h4 className="text-sm font-barlow font-semibold text-gray-800 mb-1">
+                              <h4 className="text-sm font-barlow font-semibold text-neutral-800 dark:text-neutral-200 mb-1">
                                 OPEN PACKS
                               </h4>
-                              <p className="text-xs text-gray-600 leading-relaxed">
+                              <p className="text-xs text-neutral-600 dark:text-neutral-400 leading-relaxed">
                                 Click on earned packs to reveal random seeds.
                                 Each pack guarantees at least one plant.
                               </p>
@@ -1975,16 +1993,16 @@ export default function MainSlideover({
                           </div>
                         </div>
 
-                        <div className="bg-gray-50 rounded-lg p-3">
+                        <div className="bg-neutral-50 dark:bg-neutral-900 rounded-lg p-3">
                           <div className="flex items-start gap-2">
-                            <span className="text-sm font-barlow font-semibold text-gray-400">
+                            <span className="text-sm font-barlow font-semibold text-neutral-400 dark:text-neutral-500">
                               04
                             </span>
                             <div className="flex-1">
-                              <h4 className="text-sm font-barlow font-semibold text-gray-800 mb-1">
+                              <h4 className="text-sm font-barlow font-semibold text-neutral-800 dark:text-neutral-200 mb-1">
                                 PLANT SEEDS
                               </h4>
-                              <p className="text-xs text-gray-600 leading-relaxed">
+                              <p className="text-xs text-neutral-600 dark:text-neutral-400 leading-relaxed">
                                 Select a seed from your inventory, then click on
                                 the garden grid to plant it.
                               </p>
@@ -1993,33 +2011,41 @@ export default function MainSlideover({
                         </div>
                       </div>
 
-                      <div className="border-t pt-3 border-neutral-200 border-dashed">
-                        <div className="bg-gray-50 rounded-lg p-3">
-                          <h4 className="text-xs font-mono uppercase font-medium text-gray-800 mb-2">
+                      <div className="border-t pt-3 border-neutral-200 dark:border-neutral-800 border-dashed">
+                        <div className="bg-neutral-50 dark:bg-neutral-800 rounded-lg p-3">
+                          <h4 className="text-xs uppercase font-medium text-neutral-800 dark:text-neutral-200 mb-2">
                             SEED RARITY
                           </h4>
                           <div className="space-y-1">
                             <div className="flex items-center justify-between text-xs">
-                              <span className="text-gray-600">Common</span>
-                              <span className=" text-gray-500 font-medium font-barlow">
+                              <span className="text-neutral-600 dark:text-neutral-400">
+                                Common
+                              </span>
+                              <span className=" text-neutral-500 dark:text-neutral-400 font-medium font-barlow">
                                 60%
                               </span>
                             </div>
                             <div className="flex items-center justify-between text-xs">
-                              <span className="text-gray-600">Uncommon</span>
-                              <span className=" text-gray-500 font-medium font-barlow">
+                              <span className="text-neutral-600 dark:text-neutral-400">
+                                Uncommon
+                              </span>
+                              <span className=" text-neutral-500 dark:text-neutral-400 font-medium font-barlow">
                                 30%
                               </span>
                             </div>
                             <div className="flex items-center justify-between text-xs">
-                              <span className="text-gray-600">Rare</span>
-                              <span className=" text-gray-500 font-medium font-barlow">
+                              <span className="text-neutral-600 dark:text-neutral-400">
+                                Rare
+                              </span>
+                              <span className=" text-neutral-500 dark:text-neutral-400 font-medium font-barlow">
                                 8%
                               </span>
                             </div>
                             <div className="flex items-center justify-between text-xs">
-                              <span className="text-gray-600">Legendary</span>
-                              <span className=" text-gray-500 font-medium font-barlow">
+                              <span className="text-neutral-600 dark:text-neutral-400">
+                                Legendary
+                              </span>
+                              <span className=" text-neutral-500 dark:text-neutral-400 font-medium font-barlow">
                                 2%
                               </span>
                             </div>
