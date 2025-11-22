@@ -1,5 +1,12 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono, Gowun_Batang, Tiny5, Barlow, Varela_Round } from "next/font/google";
+import {
+  Geist,
+  Geist_Mono,
+  Gowun_Batang,
+  Tiny5,
+  Barlow,
+  Varela_Round,
+} from "next/font/google";
 import "./globals.css";
 import AuthContextProvider from "./contexts/auth-context";
 
@@ -50,20 +57,39 @@ export default function RootLayout({
   return (
     <html lang="en" className="bg-sky-100">
       <head>
-        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+        <meta
+          name="viewport"
+          content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+        />
       </head>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} ${gowunBatang.variable} ${tiny5.variable} ${barlow.variable} ${varelaRound.variable} antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable} ${gowunBatang.variable} ${tiny5.variable} ${barlow.variable} ${varelaRound.variable} antialiased font-sans`}
       >
-        <AuthContextProvider>
-          {children}
-        </AuthContextProvider>
+        <AuthContextProvider>{children}</AuthContextProvider>
 
-        <div className="flex flex-col absolute bottom-4 left-4 pointer-events-none">
-          <h1 className="text-lg md:text-2xl font-bold font-barlow uppercase text-black/20">Growdoro</h1>
-          <p className="text-[10px] md:text-xs text-black/40">An infinite garden productivity app. Built by <a href="https://www.x.com/dqnamo/" className="text-black/50 pointer-events-auto">JP</a></p>
-          <p className="text-[10px] md:text-xs text-black/40">View code on <a href="https://github.com/hyperaide/growdoro" className="text-black/50 pointer-events-auto">GitHub</a></p>
-        </div>
+        {/* <div className="flex flex-col absolute bottom-4 left-4 pointer-events-none">
+          <h1 className="text-lg md:text-2xl font-bold font-barlow uppercase text-black/20">
+            Growdoro
+          </h1>
+          <p className="text-[10px] md:text-xs text-black/40">
+            An infinite garden productivity app. Built by{" "}
+            <a
+              href="https://www.x.com/dqnamo/"
+              className="text-black/50 pointer-events-auto"
+            >
+              JP
+            </a>
+          </p>
+          <p className="text-[10px] md:text-xs text-black/40">
+            View code on{" "}
+            <a
+              href="https://github.com/hyperaide/growdoro"
+              className="text-black/50 pointer-events-auto"
+            >
+              GitHub
+            </a>
+          </p>
+        </div> */}
       </body>
     </html>
   );
