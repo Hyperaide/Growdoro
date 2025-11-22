@@ -10,6 +10,7 @@ import {
   FlowerLotusIcon,
   ListChecksIcon,
   ArrowsOutSimpleIcon,
+  ArrowsInSimpleIcon,
   BellIcon,
   SealCheckIcon,
   SparkleIcon,
@@ -247,7 +248,7 @@ const SupporterTab = memo(({ profile }: { profile: any }) => {
               </ul>
             </div>
 
-            <div className="border-t pt-4">
+            <div className="border-t pt-4 border-dashed border-neutral-200">
               {cancelAtPeriodEnd ? (
                 <button
                   onClick={handleReactivateSubscription}
@@ -412,6 +413,8 @@ interface TabsProps {
   blockInventory: Record<string, number>;
   user: any;
   profile: any;
+  isExpanded: boolean;
+  setIsExpanded: (expanded: boolean) => void;
 }
 
 const Tabs = memo(
@@ -422,6 +425,8 @@ const Tabs = memo(
     blockInventory,
     user,
     profile,
+    isExpanded,
+    setIsExpanded,
   }: TabsProps) => {
     const hasUnclaimedPacks =
       sessions.filter((s) => s.completedAt && !s.rewardsClaimedAt).length > 0;
@@ -435,61 +440,90 @@ const Tabs = memo(
             id="timer"
             label="Timer"
             activeTab={activeTab}
-            onClick={() => setActiveTab("timer")}
+            onClick={() => {
+              setActiveTab("timer");
+              setIsExpanded(true);
+            }}
           />
           <TabItem
             id="packs"
             label="Packs"
             activeTab={activeTab}
-            onClick={() => setActiveTab("packs")}
+            onClick={() => {
+              setActiveTab("packs");
+              setIsExpanded(true);
+            }}
             showIndicator={hasUnclaimedPacks}
           />
           <TabItem
             id="blocks"
             label="Blocks"
             activeTab={activeTab}
-            onClick={() => setActiveTab("blocks")}
+            onClick={() => {
+              setActiveTab("blocks");
+              setIsExpanded(true);
+            }}
             showIndicator={hasBlocks}
           />
           <TabItem
             id="help"
             label="Help"
             activeTab={activeTab}
-            onClick={() => setActiveTab("help")}
+            onClick={() => {
+              setActiveTab("help");
+              setIsExpanded(true);
+            }}
           />
           <TabItem
             id="updates"
             label="Updates"
             activeTab={activeTab}
-            onClick={() => setActiveTab("updates")}
+            onClick={() => {
+              setActiveTab("updates");
+              setIsExpanded(true);
+            }}
           />
           <TabItem
             id="about"
             label="About"
             activeTab={activeTab}
-            onClick={() => setActiveTab("about")}
+            onClick={() => {
+              setActiveTab("about");
+              setIsExpanded(true);
+            }}
           />
           {user && (
             <TabItem
               id="supporter"
               label={profile?.supporter ? "Manage" : "Supporter"}
               activeTab={activeTab}
-              onClick={() => setActiveTab("supporter")}
+              onClick={() => {
+                setActiveTab("supporter");
+                setIsExpanded(true);
+              }}
               fontFamily="mono"
             />
           )}
         </div>
 
         <button
-          onClick={() => setActiveTab(null)}
+          onClick={() => setIsExpanded(!isExpanded)}
           className="ml-4 p-1 hover:bg-olive-3 rounded transition-colors"
-          aria-label="Collapse view"
+          aria-label={isExpanded ? "Collapse view" : "Expand view"}
         >
-          <ArrowsOutSimpleIcon
-            size={14}
-            weight="bold"
-            className="text-gray-800"
-          />
+          {isExpanded ? (
+            <ArrowsInSimpleIcon
+              size={14}
+              weight="bold"
+              className="text-gray-800"
+            />
+          ) : (
+            <ArrowsOutSimpleIcon
+              size={14}
+              weight="bold"
+              className="text-gray-800"
+            />
+          )}
         </button>
       </div>
     );
@@ -522,6 +556,7 @@ export default function MainSlideover({
     | "about"
     | null
   >("timer");
+  const [isExpanded, setIsExpanded] = useState(true);
   const [claimingReward, setClaimingReward] = useState(false);
   const [packOpeningRewards, setPackOpeningRewards] = useState<string[]>([]);
   const [showPackOpening, setShowPackOpening] = useState(false);
@@ -1085,11 +1120,13 @@ export default function MainSlideover({
                 blockInventory={blockInventory}
                 user={user}
                 profile={profile}
+                isExpanded={isExpanded}
+                setIsExpanded={setIsExpanded}
               />
             </div>
           </div>
           <AnimatePresence mode="wait">
-            {activeTab && (
+            {activeTab && isExpanded && (
               <motion.div
                 key={activeTab}
                 initial={{ opacity: 0 }}
@@ -1148,7 +1185,9 @@ export default function MainSlideover({
                                 onChange={(e) =>
                                   setTimerMinutes(parseInt(e.target.value))
                                 }
-                                className="w-full h-2 bg-gray-100 rounded-lg appearance-none cursor-pointer slider"
+                                className={`w-full h-2 bg-gray-100 rounded-lg appearance-none cursor-pointer slider ${
+                                  timerMode === "break" ? "slider-break" : ""
+                                }`}
                                 style={{
                                   background:
                                     timerMode === "break"
@@ -1233,32 +1272,34 @@ export default function MainSlideover({
                               Custom Time
                             </div>
                             <div className="flex items-center gap-2">
-                              <input
-                                type="number"
-                                min={timerMode === "break" ? 1 : 5}
-                                max={timerMode === "break" ? 15 : 120}
-                                value={timerMinutes}
-                                onChange={(e) => {
-                                  const numValue = parseInt(e.target.value);
-                                  if (!isNaN(numValue)) {
-                                    const min = timerMode === "break" ? 1 : 5;
-                                    const max =
-                                      timerMode === "break" ? 15 : 120;
-                                    const clamped = Math.max(
-                                      min,
-                                      Math.min(max, numValue)
-                                    );
-                                    setTimerMinutes(clamped);
-                                  }
-                                }}
-                                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                                placeholder={`${
-                                  timerMode === "break" ? "1-15" : "5-120"
-                                } minutes`}
-                              />
-                              <span className="text-xs text-gray-500 font-medium">
-                                min
-                              </span>
+                              <div className="flex flex-row w-full">
+                                <input
+                                  type="number"
+                                  min={timerMode === "break" ? 1 : 5}
+                                  max={timerMode === "break" ? 15 : 120}
+                                  value={timerMinutes}
+                                  onChange={(e) => {
+                                    const numValue = parseInt(e.target.value);
+                                    if (!isNaN(numValue)) {
+                                      const min = timerMode === "break" ? 1 : 5;
+                                      const max =
+                                        timerMode === "break" ? 15 : 120;
+                                      const clamped = Math.max(
+                                        min,
+                                        Math.min(max, numValue)
+                                      );
+                                      setTimerMinutes(clamped);
+                                    }
+                                  }}
+                                  className="flex-1 w-full px-3 py-2 border border-gray-300 rounded-l-lg text-sm focus:outline-none border-r-0 focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                                  placeholder={`${
+                                    timerMode === "break" ? "1-15" : "5-120"
+                                  } minutes`}
+                                />
+                                <span className="text-xs shrink-0 flex items-center justify-center text-gray-500 font-medium border border-l-0 border-gray-300 rounded-r-lg px-2">
+                                  min
+                                </span>
+                              </div>
                             </div>
                           </div>
 

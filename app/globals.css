@@ -176,6 +176,23 @@
   background: #d1d5db;
 }
 
+/* Break timer slider - blue thumb ring */
+.slider-break::-webkit-slider-thumb {
+  border-color: #3b82f6;
+}
+
+.slider-break::-webkit-slider-thumb:hover {
+  border-color: #2563eb;
+}
+
+.slider-break::-moz-range-thumb {
+  border-color: #3b82f6;
+}
+
+.slider-break::-moz-range-thumb:hover {
+  border-color: #2563eb;
+}
+
 /* Prevent text selection and improve touch handling on mobile */
 * {
   -webkit-touch-callout: none;
