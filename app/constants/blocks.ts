@@ -1,7 +1,20 @@
+// Configuration for individual sprites within a block
+export interface SpriteConfig {
+  path: string;           // Path to the sprite image
+  scale?: number;          // Scale factor for this sprite (defaults to block's imageScale or TILE_CONFIG.defaultImageScale)
+  yOffset?: number;        // Vertical offset in pixels for this sprite (positive moves up)
+  opacity?: number;         // Opacity for this sprite (0-1, defaults to block's opacity or 1)
+  zIndex?: number;         // Optional z-index for sprite ordering (lower draws first, defaults to array order)
+}
+
 export interface BlockType {
   id: string;
   name: string;
-  imagePath: string;
+  imagePath?: string; // Optional: for single-image blocks (backward compatibility, prefer sprites)
+  basePath?: string;  // Deprecated: use sprites array instead
+  layerPath?: string; // Deprecated: use sprites array instead
+  sprites?: SpriteConfig[]; // Array of sprites to render when fully grown (drawn in order)
+  growingSprites?: SpriteConfig[]; // Array of sprites to render while growing (drawn in order)
   latinName?: string;
   blurb?: string;
   growthTime?: number;
@@ -9,9 +22,9 @@ export interface BlockType {
   slideoverImage?: string;
   rarity: 'common' | 'uncommon' | 'rare' | 'legendary';
   category: 'terrain' | 'plant' | 'decoration';
-  imageScale?: number;  // Optional scale factor for this block's image
-  yOffset?: number;     // Optional vertical offset in pixels (positive moves up)
-  opacity?: number;     // Optional opacity for the block (0-1)
+  imageScale?: number;  // Default scale factor for sprites (can be overridden per sprite)
+  yOffset?: number;     // Default vertical offset for sprites (can be overridden per sprite)
+  opacity?: number;     // Default opacity for sprites (can be overridden per sprite)
   supporterOnly?: boolean; // Optional flag to indicate if the block is only available to supporters
 }
 
@@ -21,17 +34,43 @@ export const BLOCK_TYPES: Record<string, BlockType> = {
     name: 'Grass',
     latinName: 'Poaceae',
     blurb: 'The ground of the garden. It\'s where everything grows.',
-    imagePath: '/plants/dirt-p.png',
+    sprites: [
+      {
+        path: '/sprites/bases/dirt-bright.png',
+        scale: 1.15,
+        yOffset: -12,
+        zIndex: 0, // Base layer draws first
+      },
+      {
+        path: '/sprites/layers/grass.png',
+        scale: 1.18,
+        yOffset: 0,
+        zIndex: 1, // Grass layer draws on top
+      },
+    ],
     category: 'terrain',
     growthTime: 0,
     decayTime: 0,
     rarity: 'common',
-    yOffset: 0  // Ground level, no offset needed
+    yOffset: 10,
   },
   'water': {
     id: 'water',
     name: 'Water',
-    imagePath: '/blocks/water.png',
+    sprites: [
+      {
+        path: '/sprites/bases/water.png',
+        scale: 1.15,
+        yOffset: -12,
+        zIndex: 0, // Base layer draws first
+      },
+      // {
+      //   path: '/sprites/layers/grass.png',
+      //   scale: 1.18,
+      //   yOffset: 0,
+      //   zIndex: 1, // Grass layer draws on top
+      // },
+    ],
     category: 'terrain',
     growthTime: 0,
     decayTime: 0,
@@ -39,7 +78,7 @@ export const BLOCK_TYPES: Record<string, BlockType> = {
     yOffset: -4,
     imageScale: 1.4,
     slideoverImage: '/plants/water-slideover.png',
-    opacity: 0.9,
+    opacity: 0.95,
     supporterOnly: true
   },
   'daisy': {
@@ -47,7 +86,35 @@ export const BLOCK_TYPES: Record<string, BlockType> = {
     name: 'Daisy',
     latinName: 'Bellis perennis',
     blurb: 'These cheerful white petals with sunny yellow centers are perfect for beginners. Beloved by bees and butterflies, daisies bloom reliably and spread naturally to create delightful carpets of joy.',
-    imagePath: '/plants/daisy.png',
+    growingSprites: [
+      {
+        path: '/sprites/bases/tilled-dirt.png',
+        scale: 1.15,
+        yOffset: -12,
+        zIndex: 0, // Base layer draws first
+      },
+    ],
+    // Fully grown sprites
+    sprites: [
+      {
+        path: '/sprites/bases/dirt-bright.png',
+        scale: 1.15,
+        yOffset: -12,
+        zIndex: 0, // Base layer draws first
+      },
+      {
+        path: '/sprites/layers/grass.png',
+        scale: 1.18,
+        yOffset: 0,
+        zIndex: 1, // Grass layer draws on top
+      },
+      {
+        path: '/sprites/plants/daisy.png', // The actual plant
+        scale: 1.1,
+        yOffset: 28,
+        zIndex: 2, // Plant draws on top
+      },
+    ],
     category: 'plant',
     growthTime: 0.5,
     decayTime: 0,
@@ -61,7 +128,35 @@ export const BLOCK_TYPES: Record<string, BlockType> = {
     name: 'Carnation',
     latinName: 'Dianthus caryophyllus',
     blurb: 'A classic flower that is easy to grow and attracts bees and butterflies. A classic in any garden',
-    imagePath: '/plants/carnation.png',
+    growingSprites: [
+      {
+        path: '/sprites/bases/tilled-dirt.png',
+        scale: 1.15,
+        yOffset: -12,
+        zIndex: 0, // Base layer draws first
+      },
+    ],
+    // Fully grown sprites
+    sprites: [
+      {
+        path: '/sprites/bases/dirt-bright.png',
+        scale: 1.15,
+        yOffset: -12,
+        zIndex: 0, // Base layer draws first
+      },
+      {
+        path: '/sprites/layers/grass.png',
+        scale: 1.18,
+        yOffset: 0,
+        zIndex: 1, // Grass layer draws on top
+      },
+      {
+        path: '/sprites/plants/carnation.png', // The actual plant
+        scale: 1.2,
+        yOffset: 24,
+        zIndex: 2, // Plant draws on top
+      },
+    ],
     category: 'plant',  
     growthTime: 1,
     decayTime: 0,
@@ -77,7 +172,36 @@ export const BLOCK_TYPES: Record<string, BlockType> = {
     blurb: 'Bright, cheerful blooms that are beginner-friendly and pest-repellent. A classic in any garden',
     growthTime: 1,
     decayTime: 2,
-    imagePath: '/plants/marigold.png',
+    // Growing stage sprites (shown while plant is growing)
+    growingSprites: [
+      {
+        path: '/sprites/bases/tilled-dirt.png',
+        scale: 1.15,
+        yOffset: -12,
+        zIndex: 0, // Base layer draws first
+      },
+    ],
+    // Fully grown sprites
+    sprites: [
+      {
+        path: '/sprites/bases/dirt-bright.png',
+        scale: 1.15,
+        yOffset: -12,
+        zIndex: 0, // Base layer draws first
+      },
+      {
+        path: '/sprites/layers/grass.png',
+        scale: 1.18,
+        yOffset: 0,
+        zIndex: 1, // Grass layer draws on top
+      },
+      {
+        path: '/sprites/plants/french-marigold.png', // The actual plant
+        scale: 1.2,
+        yOffset: 24,
+        zIndex: 2, // Plant draws on top
+      },
+    ],
     slideoverImage: '/plants/marigold-slideover.png',
     rarity: 'uncommon',
     category: 'plant',
@@ -91,7 +215,34 @@ export const BLOCK_TYPES: Record<string, BlockType> = {
     blurb: 'Fragrant and soothing, lavender brings calm and attracts bees. Loves sun and dry soil.',
     growthTime: 1,
     decayTime: 2,
-    imagePath: '/plants/lavender.png',
+    growingSprites: [
+      {
+        path: '/sprites/bases/tilled-dirt.png',
+        scale: 1.15,
+        yOffset: -12,
+        zIndex: 0, // Base layer draws first
+      },
+    ],
+    sprites: [
+      {
+        path: '/sprites/bases/dirt-bright.png',
+        scale: 1.15,
+        yOffset: -12,
+        zIndex: 0, // Base layer draws first
+      },
+      {
+        path: '/sprites/layers/grass.png',
+        scale: 1.18,
+        yOffset: 0,
+        zIndex: 1, // Grass layer draws on top
+      },
+      {
+        path: '/sprites/plants/lavender.png', // The actual plant
+        scale: 1.3,
+        yOffset: 28,
+        zIndex: 2, // Plant draws on top
+      },
+    ],
     slideoverImage: '/plants/lavender-slideover.png',
     rarity: 'uncommon',
     category: 'plant',
@@ -105,8 +256,36 @@ export const BLOCK_TYPES: Record<string, BlockType> = {
     blurb: 'Exotic and striking, this plant rewards patience with bird-like flowers. Needs warmth and space.',
     growthTime: 2,
     decayTime: 2,
-    imagePath: '/plants/bird-of-paradise.png',
-    slideoverImage: '/plants/bird-of-paradise-slideover.png',
+    growingSprites: [
+      {
+        path: '/sprites/bases/tilled-dirt.png',
+        scale: 1.15,
+        yOffset: -12,
+        zIndex: 0, // Base layer draws first
+      },
+    ],
+    // Fully grown sprites
+    sprites: [
+      {
+        path: '/sprites/bases/dirt-bright.png',
+        scale: 1.15,
+        yOffset: -12,
+        zIndex: 0, // Base layer draws first
+      },
+      {
+        path: '/sprites/layers/grass.png',
+        scale: 1.18,
+        yOffset: 0,
+        zIndex: 1, // Grass layer draws on top
+      },
+      {
+        path: '/sprites/plants/birds-of-paradise.png', // The actual plant
+        scale: 1.2,
+        yOffset: 26,
+        zIndex: 2, // Plant draws on top
+      },
+    ],
+    slideoverImage: '/sprites/plants/birds-of-paradise.png',
     rarity: 'rare',
     category: 'plant',
     imageScale: 1.6,  // Taller plants might need more scaling
@@ -119,8 +298,36 @@ export const BLOCK_TYPES: Record<string, BlockType> = {
     blurb: 'A leafless, rare orchid that floats in swamps and defies cultivation. Mysterious and prized.',
     growthTime: 3,
     decayTime: 2,
-    imagePath: '/plants/ghost-orchid.png',
-    slideoverImage: '/plants/ghost-orchid-slideover.png',
+    growingSprites: [
+      {
+        path: '/sprites/bases/tilled-dirt.png',
+        scale: 1.15,
+        yOffset: -12,
+        zIndex: 0, // Base layer draws first
+      },
+    ],
+    // Fully grown sprites
+    sprites: [
+      {
+        path: '/sprites/bases/dirt-bright.png',
+        scale: 1.15,
+        yOffset: -12,
+        zIndex: 0, // Base layer draws first
+      },
+      {
+        path: '/sprites/layers/grass.png',
+        scale: 1.18,
+        yOffset: 0,
+        zIndex: 1, // Grass layer draws on top
+      },
+      {
+        path: '/sprites/plants/ghost-orchid.png', // The actual plant
+        scale: 1.2,
+        yOffset: 26,
+        zIndex: 2, // Plant draws on top
+      },
+    ],
+    slideoverImage: '/sprites/plants/ghost-orchid.png',
     rarity: 'legendary',
     category: 'plant',
     imageScale: 1.3,  // Delicate orchid might need specific scaling
@@ -130,19 +337,19 @@ export const BLOCK_TYPES: Record<string, BlockType> = {
 
 export const RARITY_COLORS = {
   common: {
-    colorSubtle: 'from-gray-100 to-white',
+    colorSubtle: 'from-neutral-100 to-white dark:from-neutral-800 dark:to-neutral-900',
     colorBold: 'text-gray-500',
   },
   uncommon: {
-    colorSubtle: 'from-green-100 to-white',
+    colorSubtle: 'from-green-100 to-white dark:from-green-900 dark:to-neutral-900',
     colorBold: 'text-green-500',
   },
   rare: {
-    colorSubtle: 'from-blue-100 to-white',
+    colorSubtle: 'from-blue-100 to-white dark:from-blue-900 dark:to-neutral-900',
     colorBold: 'text-blue-500',
   },
   legendary: {
-    colorSubtle: 'from-purple-200 to-white',
+    colorSubtle: 'from-purple-200 to-white dark:from-purple-900 dark:to-neutral-900',
     colorBold: 'text-purple-500',
   }
 };
@@ -160,6 +367,22 @@ export const TILLED_GRASS_CONFIG = {
   imageScale: 1.16,  // Scale for tilled grass image
   yOffset: 0        // Y-offset for tilled grass (stays at ground level)
 };
+
+// Helper function to get the display image path for a block (for UI purposes)
+export function getBlockDisplayImage(blockType: BlockType): string | undefined {
+  // For blocks with sprites, use the last sprite (top layer) for UI display
+  if (blockType.sprites && blockType.sprites.length > 0) {
+    // Sort by zIndex if provided, otherwise use last in array
+    const sortedSprites = [...blockType.sprites].sort((a, b) => (a.zIndex ?? 999) - (b.zIndex ?? 999));
+    return sortedSprites[sortedSprites.length - 1].path;
+  }
+  // Backward compatibility: check deprecated layerPath
+  if (blockType.layerPath) {
+    return blockType.layerPath;
+  }
+  // Fall back to single image path
+  return blockType.imagePath;
+}
 
 // Extract block IDs for type safety
 export type BlockTypeId = keyof typeof BLOCK_TYPES; 
