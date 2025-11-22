@@ -26,6 +26,7 @@ import { DateTime } from "luxon";
 import { useAuth } from "../contexts/auth-context";
 import AuthButton from "./AuthButton";
 import { AppSchema } from "@/instant.schema";
+import { imageCache } from "../../lib/image-cache";
 
 interface Block {
   id: string;
@@ -314,218 +315,106 @@ const IsometricGarden: React.FC = () => {
     }
   }, [data?.blocks, effectiveSessionId, user]);
 
-  // Preload block images
+  // Preload block images using global image cache
   useEffect(() => {
     const images: Record<string, HTMLImageElement | HTMLImageElement[]> = {};
-    let loadedCount = 0;
     const blockEntries = Object.entries(BLOCK_TYPES);
-
-    // Count total images to load
-    let totalImages = 1; // tilled-grass image
-    blockEntries.forEach(([blockId, blockType]) => {
-      if (blockType.sprites && blockType.sprites.length > 0) {
-        // Fully grown sprites
-        totalImages += blockType.sprites.length;
-      }
-      if (blockType.growingSprites && blockType.growingSprites.length > 0) {
-        // Growing stage sprites
-        totalImages += blockType.growingSprites.length;
-      }
-      // Only count legacy/imagePath if no sprites are defined
-      if (!blockType.sprites && !blockType.growingSprites) {
-        if (blockType.basePath && blockType.layerPath) {
-          // Legacy layered block: base + layer
-          totalImages += 2;
-        } else if (blockType.imagePath) {
-          // Single image block
-          totalImages += 1;
-        }
-      }
-    });
 
     if (blockEntries.length === 0) {
       setLoadedImages({});
       return;
     }
 
-    const checkAllLoaded = () => {
-      // Check if we've loaded all images
-      if (loadedCount === totalImages) {
-        setLoadedImages({ ...images });
+    // Collect all image URLs to preload
+    const imageUrls: string[] = [];
+    const imageMap: Map<
+      string,
+      Array<{ blockId: string; index?: number; isGrowing?: boolean }>
+    > = new Map();
+
+    const addMapping = (
+      path: string,
+      mapping: { blockId: string; index?: number; isGrowing?: boolean }
+    ) => {
+      if (!imageMap.has(path)) {
+        imageMap.set(path, []);
       }
+      imageMap.get(path)!.push(mapping);
+      imageUrls.push(path);
     };
 
-    // Preload all block images
     blockEntries.forEach(([blockId, blockType]) => {
       // Load fully grown sprites
       if (blockType.sprites && blockType.sprites.length > 0) {
-        // Sprite-based block: load all sprites
-        const spriteImages: HTMLImageElement[] = [];
-        let loadedSprites = 0;
-
         blockType.sprites.forEach((sprite, index) => {
-          const spriteImg = new Image();
-          spriteImg.onload = () => {
-            spriteImages[index] = spriteImg;
-            loadedSprites++;
-            loadedCount++;
-            if (loadedSprites === blockType.sprites!.length) {
-              images[blockId] = spriteImages;
-            }
-            checkAllLoaded();
-          };
-          spriteImg.onerror = () => {
-            console.warn(
-              `Failed to load sprite ${index} for ${blockType.name} from ${sprite.path}`
-            );
-            loadedSprites++;
-            loadedCount++;
-            if (loadedSprites === blockType.sprites!.length) {
-              images[blockId] = spriteImages;
-            }
-            checkAllLoaded();
-          };
-          spriteImg.src = sprite.path;
+          addMapping(sprite.path, { blockId, index });
         });
       }
 
-      // Load growing sprites (if different from fully grown sprites)
+      // Load growing sprites
       if (blockType.growingSprites && blockType.growingSprites.length > 0) {
-        const growingSpriteImages: HTMLImageElement[] = [];
-        let loadedGrowingSprites = 0;
-
         blockType.growingSprites.forEach((sprite, index) => {
-          const spriteImg = new Image();
-          spriteImg.onload = () => {
-            growingSpriteImages[index] = spriteImg;
-            loadedGrowingSprites++;
-            loadedCount++;
-            if (loadedGrowingSprites === blockType.growingSprites!.length) {
-              images[`${blockId}-growing`] = growingSpriteImages;
-            }
-            checkAllLoaded();
-          };
-          spriteImg.onerror = () => {
-            console.warn(
-              `Failed to load growing sprite ${index} for ${blockType.name} from ${sprite.path}`
-            );
-            loadedGrowingSprites++;
-            loadedCount++;
-            if (loadedGrowingSprites === blockType.growingSprites!.length) {
-              images[`${blockId}-growing`] = growingSpriteImages;
-            }
-            checkAllLoaded();
-          };
-          spriteImg.src = sprite.path;
+          addMapping(sprite.path, { blockId, index, isGrowing: true });
         });
       }
 
-      // Legacy layered block support (only if no sprites defined)
+      // Legacy layered block support
       if (
         blockType.basePath &&
         blockType.layerPath &&
         !blockType.sprites &&
         !blockType.growingSprites
       ) {
-        // Legacy layered block: load base and layer separately
-        const layeredImages: HTMLImageElement[] = [];
-        let baseLoaded = false;
-        let layerLoaded = false;
-
-        const checkBlockComplete = () => {
-          // Once both images are loaded (or failed), store the layered images array
-          if (baseLoaded && layerLoaded) {
-            images[blockId] = layeredImages;
-            checkAllLoaded();
-          }
-        };
-
-        // Load base image
-        const baseImg = new Image();
-        baseImg.onload = () => {
-          layeredImages[0] = baseImg;
-          baseLoaded = true;
-          loadedCount++;
-          checkBlockComplete();
-          checkAllLoaded();
-        };
-        baseImg.onerror = () => {
-          console.warn(
-            `Failed to load base image for ${blockType.name} from ${blockType.basePath}`
-          );
-          baseLoaded = true;
-          loadedCount++;
-          checkBlockComplete();
-          checkAllLoaded();
-        };
-        baseImg.src = blockType.basePath;
-
-        // Load layer image
-        const layerImg = new Image();
-        layerImg.onload = () => {
-          layeredImages[1] = layerImg;
-          layerLoaded = true;
-          loadedCount++;
-          checkBlockComplete();
-          checkAllLoaded();
-        };
-        layerImg.onerror = () => {
-          console.warn(
-            `Failed to load layer image for ${blockType.name} from ${blockType.layerPath}`
-          );
-          layerLoaded = true;
-          loadedCount++;
-          checkBlockComplete();
-          checkAllLoaded();
-        };
-        layerImg.src = blockType.layerPath;
+        addMapping(blockType.basePath, { blockId, index: 0 });
+        addMapping(blockType.layerPath, { blockId, index: 1 });
       }
 
-      // Single image block (backward compatibility, only if no sprites defined)
+      // Single image block
       if (
         blockType.imagePath &&
         !blockType.sprites &&
         !blockType.growingSprites &&
         !blockType.basePath
       ) {
-        const img = new Image();
-        img.onload = () => {
-          images[blockId] = img;
-          loadedCount++;
-          if (loadedCount === totalImages) {
-            setLoadedImages(images);
-          }
-        };
-        img.onerror = () => {
-          console.warn(
-            `Failed to load image for ${blockType.name} from ${blockType.imagePath}`
-          );
-          loadedCount++;
-          if (loadedCount === totalImages) {
-            setLoadedImages(images);
-          }
-        };
-        img.src = blockType.imagePath;
+        addMapping(blockType.imagePath, { blockId });
       }
     });
 
-    // Also preload the tilled-grass image for growing plants
-    const tilledGrassImg = new Image();
-    tilledGrassImg.onload = () => {
-      images["tilled-grass"] = tilledGrassImg;
-      loadedCount++;
-      if (loadedCount === totalImages) {
+    // Add tilled-grass image
+    addMapping("/blocks/tilled-grass.png", { blockId: "tilled-grass" });
+
+    // Preload all images in parallel using image cache
+    imageCache
+      .preloadImages(imageUrls)
+      .then((loadedImagesMap) => {
+        // Organize loaded images back into the expected structure
+        imageMap.forEach((mappings, url) => {
+          const img = loadedImagesMap.get(url);
+          if (!img) return;
+
+          mappings.forEach(({ blockId, index, isGrowing }) => {
+            const key = isGrowing ? `${blockId}-growing` : blockId;
+
+            if (index !== undefined) {
+              // This is part of a sprite array
+              if (!images[key]) {
+                images[key] = [];
+              }
+              const arr = images[key] as HTMLImageElement[];
+              arr[index] = img;
+            } else {
+              // Single image
+              images[key] = img;
+            }
+          });
+        });
+
         setLoadedImages(images);
-      }
-    };
-    tilledGrassImg.onerror = () => {
-      console.warn("Failed to load tilled-grass image");
-      loadedCount++;
-      if (loadedCount === totalImages) {
-        setLoadedImages(images);
-      }
-    };
-    tilledGrassImg.src = "/blocks/tilled-grass.png";
+      })
+      .catch((error) => {
+        console.error("Failed to preload images:", error);
+        setLoadedImages({});
+      });
   }, []);
 
   // Memoize window dimensions to reduce recalculations
@@ -943,7 +832,7 @@ const IsometricGarden: React.FC = () => {
       }
 
       // Draw grid lines for reference (subtle)
-      ctx.strokeStyle = "rgba(147, 196, 188, 0.2)";
+      ctx.strokeStyle = "rgba(55, 159, 233, 0.15)";
       ctx.lineWidth = 1;
 
       // Calculate visible grid range

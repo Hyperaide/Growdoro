@@ -17,6 +17,7 @@
     "@radix-ui/colors": "^3.0.0",
     "@react-oauth/google": "^0.12.2",
     "canvas-confetti": "^1.9.3",
+    "clsx": "^2.1.1",
     "luxon": "^3.7.1",
     "motion": "^12.23.3",
     "next": "15.3.5",

@@ -618,6 +618,7 @@ export default function MainSlideover({
       return (
         timeElapsed >= sessionDuration &&
         !session.timeRemaining &&
+        session.type !== "break" &&
         !session.paused &&
         !session.rewardsClaimedAt
       );
@@ -971,7 +972,10 @@ export default function MainSlideover({
 
   // Update time/date less frequently
   const [currentTime, setCurrentTime] = useState(() =>
-    new Date().toLocaleTimeString()
+    new Date().toLocaleTimeString("en-US", {
+      hour: "2-digit",
+      minute: "2-digit",
+    })
   );
   const [currentDate, setCurrentDate] = useState(() => {
     const date = new Date();
@@ -1039,7 +1043,7 @@ export default function MainSlideover({
         style={{
           width: "100%",
           maxWidth: "24rem",
-          maxHeight: "70%",
+          maxHeight: "80%",
           WebkitOverflowScrolling: "touch",
           willChange: "transform",
         }}
@@ -1050,7 +1054,7 @@ export default function MainSlideover({
           className="flex flex-col divide-y divide-dashed divide-neutral-200"
           style={{ height: "100%" }}
         >
-          <div className="p-4">
+          <div className="p-4 sticky top-0 bg-white z-50">
             <div className="flex flex-row justify-between items-start font-barlow mb-2">
               <div className="flex flex-col p-1 rounded-md">
                 <h1 className="text-sm font-semibold text-olive-12">
@@ -1092,10 +1096,10 @@ export default function MainSlideover({
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.1, type: "tween" }}
-                className="flex-1 p-4"
+                className="p-4 flex-1 min-h-0"
               >
                 {activeTab === "timer" && (
-                  <div className="flex-1 overflow-y-auto">
+                  <div className="h-full">
                     <div className="rounded-lg space-y-4">
                       {!activeSession ? (
                         <>
@@ -1793,7 +1797,7 @@ export default function MainSlideover({
                 )}
 
                 {activeTab === "blocks" && (
-                  <div className="flex-1 overflow-y-auto">
+                  <div className="h-full overflow-y-auto">
                     {Object.keys(blockInventory).length === 0 ? (
                       <div className="text-sm text-gray-500 text-center py-8">
                         {/* <FlowerLotusIcon size={24} className="mx-auto mb-2 text-gray-400" /> */}
@@ -1847,7 +1851,7 @@ export default function MainSlideover({
 
                 {activeTab === "updates" && (
                   <div className="flex-1 overflow-y-auto">
-                    <div className="space-y-4">
+                    <div className="space-y-2">
                       {UPDATES.sort(
                         (a, b) =>
                           DateTime.fromISO(b.date).toMillis() -
@@ -1857,13 +1861,13 @@ export default function MainSlideover({
                           key={update.id}
                           className="bg-gray-50 rounded-lg p-3"
                         >
-                          <h4 className="text-xs font-mono uppercase font-medium text-gray-800 mb-1">
+                          <h4 className="text-sm font-barlow font-semibold text-gray-800 mb-1">
                             {update.title}
                           </h4>
-                          <p className="text-xs text-gray-600 leading-relaxed">
+                          <p className="text-sm text-gray-600 leading-relaxed">
                             {update.description}
                           </p>
-                          <p className="text-xs text-gray-600 leading-relaxed mt-1">
+                          <p className="text-xs text-gray-400 leading-relaxed mt-1">
                             {DateTime.fromISO(update.date).toRelative()}
                           </p>
                         </div>
@@ -1876,14 +1880,14 @@ export default function MainSlideover({
                 {activeTab === "help" && (
                   <div className="flex-1 overflow-y-auto">
                     <div className="space-y-4">
-                      <div className="space-y-3">
+                      <div className="space-y-2">
                         <div className="bg-gray-50 rounded-lg p-3">
                           <div className="flex items-start gap-2">
-                            <span className="text-xs font-mono font-bold text-gray-400">
+                            <span className="text-sm font-barlow font-semibold text-gray-400">
                               01
                             </span>
                             <div className="flex-1">
-                              <h4 className="text-xs font-mono uppercase font-medium text-gray-800 mb-1">
+                              <h4 className="text-sm font-barlow font-semibold text-gray-800 mb-1">
                                 SET TIMER
                               </h4>
                               <p className="text-xs text-gray-600 leading-relaxed">
@@ -1897,11 +1901,11 @@ export default function MainSlideover({
 
                         <div className="bg-gray-50 rounded-lg p-3">
                           <div className="flex items-start gap-2">
-                            <span className="text-xs font-mono font-bold text-gray-400">
+                            <span className="text-sm font-barlow font-semibold text-gray-400">
                               02
                             </span>
                             <div className="flex-1">
-                              <h4 className="text-xs font-mono uppercase font-medium text-gray-800 mb-1">
+                              <h4 className="text-sm font-barlow font-semibold text-gray-800 mb-1">
                                 EARN PACKS
                               </h4>
                               <p className="text-xs text-gray-600 leading-relaxed">
@@ -1915,11 +1919,11 @@ export default function MainSlideover({
 
                         <div className="bg-gray-50 rounded-lg p-3">
                           <div className="flex items-start gap-2">
-                            <span className="text-xs font-mono font-bold text-gray-400">
+                            <span className="text-sm font-barlow font-semibold text-gray-400">
                               03
                             </span>
                             <div className="flex-1">
-                              <h4 className="text-xs font-mono uppercase font-medium text-gray-800 mb-1">
+                              <h4 className="text-sm font-barlow font-semibold text-gray-800 mb-1">
                                 OPEN PACKS
                               </h4>
                               <p className="text-xs text-gray-600 leading-relaxed">
@@ -1932,11 +1936,11 @@ export default function MainSlideover({
 
                         <div className="bg-gray-50 rounded-lg p-3">
                           <div className="flex items-start gap-2">
-                            <span className="text-xs font-mono font-bold text-gray-400">
+                            <span className="text-sm font-barlow font-semibold text-gray-400">
                               04
                             </span>
                             <div className="flex-1">
-                              <h4 className="text-xs font-mono uppercase font-medium text-gray-800 mb-1">
+                              <h4 className="text-sm font-barlow font-semibold text-gray-800 mb-1">
                                 PLANT SEEDS
                               </h4>
                               <p className="text-xs text-gray-600 leading-relaxed">
@@ -1948,7 +1952,7 @@ export default function MainSlideover({
                         </div>
                       </div>
 
-                      <div className="border-t pt-3 border-gray-200">
+                      <div className="border-t pt-3 border-neutral-200 border-dashed">
                         <div className="bg-gray-50 rounded-lg p-3">
                           <h4 className="text-xs font-mono uppercase font-medium text-gray-800 mb-2">
                             SEED RARITY
