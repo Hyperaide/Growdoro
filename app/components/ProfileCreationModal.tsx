@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { UserIcon, SparkleIcon, ArrowRightIcon, CheckCircleIcon, XCircleIcon, CircleNotchIcon, SealCheckIcon } from '@phosphor-icons/react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from '@/app/contexts/auth-context';
+import { trackProfileCreated } from '@/lib/events';
 
 interface ProfileCreationModalProps {
     isOpen: boolean;
@@ -152,6 +153,8 @@ export default function ProfileCreationModal({ isOpen, onClose, userId }: Profil
 
             if (result.success) {
                 setProfileId(result.profileId);
+                // Track profile creation
+                trackProfileCreated(username.toLowerCase());
                 // Move to step 2
                 setStep(2);
             } else {

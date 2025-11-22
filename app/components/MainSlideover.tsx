@@ -34,6 +34,14 @@ import { UPDATES } from "../constants/updates";
 import AboutTab from "./AboutTab";
 import ThemeToggle from "./ThemeToggle";
 import { useTheme } from "../contexts/theme-context";
+import posthog from "posthog-js";
+import {
+  trackTimerStarted,
+  trackTimerCompleted,
+  trackTimerStopped,
+  trackPackOpened,
+  trackPackClaimed,
+} from "@/lib/events";
 
 interface MainSlideoverProps {
   isOpen: boolean;
@@ -198,8 +206,8 @@ const SupporterTab = memo(({ profile }: { profile: any }) => {
             Free Forever
           </h3>
           <p className="text-neutral-600 dark:text-neutral-400 text-xs">
-            Growdoro will always be free to use. Enjoy unlimited pomodoro
-            sessions and grow your infinite garden.
+            Growdoro will always be free to use. Enjoy unlimited focus sessions
+            and grow your infinite garden.
           </p>
         </div>
 
@@ -848,6 +856,11 @@ const MainSlideover = memo(function MainSlideover({
             completedAt: Date.now(),
           })
         );
+
+        // Track timer completed
+        const duration = activeSession.timeInSeconds;
+        const actualTime = duration; // Timer completed fully
+        trackTimerCompleted(duration, actualTime);
       }, 100);
     }
   }, [activeSession, remainingTime]);
@@ -899,6 +912,9 @@ const MainSlideover = memo(function MainSlideover({
     setActiveSession(createdSession);
     setRemainingTime(minutes * 60);
     setIsPaused(false);
+
+    // Track timer started
+    trackTimerStarted(minutes * 60);
   };
 
   const pauseTimer = () => {
@@ -929,17 +945,22 @@ const MainSlideover = memo(function MainSlideover({
   };
 
   const cancelTimer = () => {
-    setActiveSession(null);
-    setRemainingTime(0);
-    setIsPaused(false);
-
     if (activeSession) {
+      // Track timer stopped
+      const duration = activeSession.timeInSeconds;
+      const elapsedTime = duration - remainingTime;
+      trackTimerStopped(duration, elapsedTime);
+
       db.transact(
         db.tx.sessions[activeSession.id].update({
           cancelledAt: DateTime.now().toISO(),
         })
       );
     }
+
+    setActiveSession(null);
+    setRemainingTime(0);
+    setIsPaused(false);
   };
 
   const claimReward = async (session: Session) => {
@@ -968,6 +989,10 @@ const MainSlideover = memo(function MainSlideover({
       }
 
       const result = await response.json();
+
+      // Track pack claimed
+      const packType = result.packSize === 5 ? "large" : "standard";
+      trackPackClaimed(packType);
 
       // Show pack opening animation with the server-generated rewards
       setPackOpeningRewards(result.rewardBlocks);
@@ -1284,7 +1309,7 @@ const MainSlideover = memo(function MainSlideover({
 
                           {/* Custom Time Input */}
                           <div className="space-y-2 mt-4">
-                            <div className="text-xs text-gray-600 font-barlow font-semibold uppercase">
+                            <div className="text-xs text-neutral-900 dark:text-neutral-200 font-barlow font-semibold uppercase">
                               Custom Time
                             </div>
                             <div className="flex items-center gap-2">
@@ -1579,8 +1604,8 @@ const MainSlideover = memo(function MainSlideover({
                               size={24}
                               className="mx-auto mb-2 text-neutral-400 dark:text-neutral-600"
                             />
-                            <p className="text-neutral-600 dark:text-neutral-400">
-                              No packs to open!
+                            <p className="text-neutral-900 text-xs dark:text-neutral-200 font-barlow font-semibold uppercase">
+                              No packs to open
                             </p>
                             <p className="text-xs mt-1 text-neutral-600 dark:text-neutral-400">
                               Complete timers to earn packs
@@ -1860,11 +1885,11 @@ const MainSlideover = memo(function MainSlideover({
                     {Object.keys(blockInventory).length === 0 ? (
                       <div className="text-sm text-gray-500 text-center py-8">
                         {/* <FlowerLotusIcon size={24} className="mx-auto mb-2 text-gray-400" /> */}
-                        <p className="text-xs font-mono uppercase font-medium">
-                          No seeds yet
+                        <p className="text-xs uppercase text-neutral-900 dark:text-neutral-200 font-barlow font-semibold">
+                          No blocks yet
                         </p>
-                        <p className="text-xs mt-1 max-w-xs mx-auto">
-                          Complete some pomodoro sessions to earn seeds.
+                        <p className="text-xs mt-1 max-w-xs mx-auto text-neutral-600 dark:text-neutral-400">
+                          Complete some focus sessions to earn blocks
                         </p>
                       </div>
                     ) : (

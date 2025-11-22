@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { BLOCK_TYPES, BlockTypeId } from "../constants/blocks";
 import BlockContent from "./BlockContent";
 import confetti from "canvas-confetti";
+import { trackPackOpened } from "@/lib/events";
 
 interface Block {
   id: string;
@@ -29,6 +30,10 @@ export default function PackOpeningModal({
 
   useEffect(() => {
     if (isOpen) {
+      // Track pack opened
+      const packType = rewards.length === 5 ? "large" : "standard";
+      trackPackOpened(packType);
+
       setRevealedCards([]);
       // Reveal cards one by one
       rewards.forEach((_, index) => {

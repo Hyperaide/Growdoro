@@ -6,6 +6,7 @@ import { id } from '@instantdb/react';
 import { GoogleOAuthProvider, GoogleLogin } from '@react-oauth/google';
 import ProfileCreationModal from '../components/ProfileCreationModal';
 import LoginModal from '../components/LoginModal';
+import { trackSignIn, trackSignOut, trackProfileCreated } from '@/lib/events';
 
 interface AuthContextType {
     user: any;
@@ -135,6 +136,7 @@ function AuthContextProviderInner({ children }: { children: React.ReactNode }) {
     }, [user, profile, profileData, isLoading, sessionId]);
 
     const signOut = () => {
+        trackSignOut();
         db.auth.signOut();
     };
 
@@ -163,6 +165,7 @@ function AuthContextProviderInner({ children }: { children: React.ReactNode }) {
                             nonce,
                         })
                         .then(() => {
+                            trackSignIn('google');
                             // Call the onSuccess callback if provided
                             if (onSuccess) {
                                 onSuccess();

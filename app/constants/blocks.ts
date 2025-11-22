@@ -332,6 +332,48 @@ export const BLOCK_TYPES: Record<string, BlockType> = {
     category: 'plant',
     imageScale: 1.3,  // Delicate orchid might need specific scaling
     yOffset: 0  // Medium lift for the floating orchid
+  },
+  'sunflower': {
+    id: 'sunflower',
+    name: 'Sunflower',
+    latinName: 'Helianthus annuus',
+    blurb: 'Tall and cheerful, sunflowers follow the sun and bring joy to any garden. Their bright yellow petals and large seed heads attract birds and bees.',
+    growthTime: 1.5,
+    decayTime: 2,
+    growingSprites: [
+      {
+        path: '/sprites/bases/tilled-dirt.png',
+        scale: 1.15,
+        yOffset: -12,
+        zIndex: 0, // Base layer draws first
+      },
+    ],
+    // Fully grown sprites
+    sprites: [
+      {
+        path: '/sprites/bases/dirt-bright.png',
+        scale: 1.15,
+        yOffset: -12,
+        zIndex: 0, // Base layer draws first
+      },
+      {
+        path: '/sprites/layers/grass.png',
+        scale: 1.18,
+        yOffset: 0,
+        zIndex: 1, // Grass layer draws on top
+      },
+      {
+        path: '/sprites/plants/sunflower.png', // The actual plant
+        scale: 1.2,
+        yOffset: 30,
+        zIndex: 2, // Plant draws on top
+      },
+    ],
+    slideoverImage: '/plants/sunflower-slideover.png',
+    rarity: 'rare',
+    category: 'plant',
+    imageScale: 1.5,  // Tall sunflowers need good scaling
+    yOffset: 15  // Tall plants need more lift
   }
 };
 

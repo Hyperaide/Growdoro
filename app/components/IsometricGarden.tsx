@@ -28,6 +28,7 @@ import { useTheme } from "../contexts/theme-context";
 import AuthButton from "./AuthButton";
 import { AppSchema } from "@/instant.schema";
 import { imageCache } from "../../lib/image-cache";
+import { trackBlockPlaced, trackPlantPlanted } from "@/lib/events";
 
 interface Block {
   id: string;
@@ -1095,6 +1096,13 @@ const IsometricGarden: React.FC = () => {
     }
 
     await db.transact(db.tx.blocks[unplacedBlock.id].update(updateData));
+
+    // Track event
+    if (blockType.category === "plant") {
+      trackPlantPlanted(selectedInventoryBlock, x, y, 0);
+    } else {
+      trackBlockPlaced(selectedInventoryBlock, x, y, 0);
+    }
 
     // Add to local state
     const newBlock: Block = {

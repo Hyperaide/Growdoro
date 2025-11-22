@@ -11,6 +11,7 @@ import "./globals.css";
 import AuthContextProvider from "./contexts/auth-context";
 import { ThemeContextProvider } from "./contexts/theme-context";
 import NightModeOverlay from "./components/NightModeOverlay";
+import { PostHogProvider } from "./contexts/posthog-context";
 
 const varelaRound = Varela_Round({
   variable: "--font-varela-round",
@@ -70,10 +71,12 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} ${gowunBatang.variable} ${tiny5.variable} ${barlow.variable} ${varelaRound.variable} antialiased font-sans transition-colors duration-500`}
       >
-        <ThemeContextProvider>
-          <AuthContextProvider>{children}</AuthContextProvider>
-          <NightModeOverlay />
-        </ThemeContextProvider>
+        <PostHogProvider>
+          <ThemeContextProvider>
+            <AuthContextProvider>{children}</AuthContextProvider>
+            <NightModeOverlay />
+          </ThemeContextProvider>
+        </PostHogProvider>
 
         {/* <div className="flex flex-col absolute bottom-4 left-4 pointer-events-none">
           <h1 className="text-lg md:text-2xl font-bold font-barlow uppercase text-black/20">
