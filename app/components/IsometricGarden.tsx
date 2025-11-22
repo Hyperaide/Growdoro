@@ -74,8 +74,6 @@ const IsometricGarden: React.FC = () => {
   // Performance optimization: track if we need to render
   const [needsRender, setNeedsRender] = useState(true);
   const animationFrameRef = useRef<number | null>(null);
-  const gridCacheRef = useRef<ImageData | null>(null);
-  const lastCameraRef = useRef<Camera>({ x: 0, y: 0, zoom: 1 });
 
   // Use auth context for session management
   const { user, sessionId } = useAuth();
@@ -818,21 +816,9 @@ const IsometricGarden: React.FC = () => {
     ]
   );
 
-  // Optimized grid drawing with caching
+  // Optimized grid drawing (Caching removed for performance)
   const drawGrid = useCallback(
     (ctx: CanvasRenderingContext2D) => {
-      // Check if we need to redraw the grid
-      const cameraChanged =
-        lastCameraRef.current.x !== camera.x ||
-        lastCameraRef.current.y !== camera.y ||
-        lastCameraRef.current.zoom !== camera.zoom;
-
-      if (!cameraChanged && gridCacheRef.current) {
-        // Use cached grid
-        ctx.putImageData(gridCacheRef.current, 0, 0);
-        return;
-      }
-
       // Draw grid lines for reference (subtle)
       ctx.strokeStyle =
         theme === "dark"
@@ -872,15 +858,6 @@ const IsometricGarden: React.FC = () => {
           ctx.stroke();
         }
       }
-
-      // Cache the grid
-      gridCacheRef.current = ctx.getImageData(
-        0,
-        0,
-        ctx.canvas.width,
-        ctx.canvas.height
-      );
-      lastCameraRef.current = { ...camera };
     },
     [camera, worldToScreen, windowDimensions, theme]
   );
@@ -964,8 +941,6 @@ const IsometricGarden: React.FC = () => {
         ctx.scale(dpr, dpr);
       }
 
-      // Clear grid cache on resize
-      gridCacheRef.current = null;
       setNeedsRender(true);
     };
 
@@ -995,13 +970,15 @@ const IsometricGarden: React.FC = () => {
   // Track state changes that require re-render
   useEffect(() => {
     setNeedsRender(true);
-  }, [blocks, camera, hoveredBlock, hoveredTile, isDragging, draggedBlock]);
-
-  // Clear grid cache when theme changes
-  useEffect(() => {
-    gridCacheRef.current = null;
-    setNeedsRender(true);
-  }, [theme]);
+  }, [
+    blocks,
+    camera,
+    hoveredBlock,
+    hoveredTile,
+    isDragging,
+    draggedBlock,
+    theme,
+  ]);
 
   // Check for animation updates
   useEffect(() => {
@@ -1170,8 +1147,6 @@ const IsometricGarden: React.FC = () => {
           x: e.clientX - panStart.x,
           y: e.clientY - panStart.y,
         });
-        // Clear grid cache when panning
-        gridCacheRef.current = null;
       } else {
         // Update hovered tile
         const { x, y } = screenToWorld(e.clientX, e.clientY);
@@ -1260,8 +1235,6 @@ const IsometricGarden: React.FC = () => {
 
       if (newZoom !== camera.zoom) {
         setCamera({ ...camera, zoom: newZoom });
-        // Clear grid cache when zooming
-        gridCacheRef.current = null;
       }
     },
     [camera]
