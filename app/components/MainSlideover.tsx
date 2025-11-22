@@ -545,7 +545,7 @@ const Tabs = memo(
 
 Tabs.displayName = "Tabs";
 
-export default function MainSlideover({
+const MainSlideover = memo(function MainSlideover({
   isOpen,
   onClose,
   selectedBlockType,
@@ -2085,4 +2085,6 @@ export default function MainSlideover({
       />
     </>
   );
-}
+});
+
+export default MainSlideover;

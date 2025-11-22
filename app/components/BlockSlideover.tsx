@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, memo } from "react";
 import {
   useFloating,
   autoUpdate,
@@ -39,7 +39,7 @@ interface BlockSlideoverProps {
   onUpdateBlock: (blockId: string, updates: Partial<Block>) => void;
 }
 
-export default function BlockSlideover({
+const BlockSlideover = memo(function BlockSlideover({
   block,
   isOpen,
   onClose,
@@ -206,4 +206,6 @@ export default function BlockSlideover({
       </div>
     </motion.div>
   );
-}
+});
+
+export default BlockSlideover;
