@@ -107,6 +107,7 @@ const IsometricGarden: React.FC = () => {
           $: {
             where: {
               "user.id": user.id,
+              removedAt: { $isNull: true },
             },
           },
         },
@@ -116,6 +117,7 @@ const IsometricGarden: React.FC = () => {
           $: {
             where: {
               sessionId: sessionId,
+              removedAt: { $isNull: true },
             },
           },
         },
@@ -163,9 +165,11 @@ const IsometricGarden: React.FC = () => {
               where: user
                 ? {
                     "user.id": user.id,
+                    removedAt: { $isNull: true },
                   }
                 : {
                     sessionId: effectiveSessionId,
+                    removedAt: { $isNull: true },
                   },
             },
           },
@@ -1050,11 +1054,13 @@ const IsometricGarden: React.FC = () => {
                 "user.id": user.id,
                 type: selectedInventoryBlock,
                 x: { $isNull: true },
+                removedAt: { $isNull: true },
               }
             : {
                 sessionId: effectiveSessionId,
                 type: selectedInventoryBlock,
                 x: { $isNull: true },
+                removedAt: { $isNull: true },
               },
           limit: 1,
         },
@@ -1132,11 +1138,19 @@ const IsometricGarden: React.FC = () => {
     const { data: checkData } = await db.queryOnce({
       blocks: {
         $: {
-          where: {
-            sessionId: effectiveSessionId,
-            type: selectedInventoryBlock,
-            x: { $isNull: true },
-          },
+          where: user
+            ? {
+                "user.id": user.id,
+                type: selectedInventoryBlock,
+                x: { $isNull: true },
+                removedAt: { $isNull: true },
+              }
+            : {
+                sessionId: effectiveSessionId,
+                type: selectedInventoryBlock,
+                x: { $isNull: true },
+                removedAt: { $isNull: true },
+              },
           limit: 1,
         },
       },
