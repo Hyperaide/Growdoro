@@ -85,38 +85,67 @@ const getBrowserSessionId = (): string => {
 };
 
 // Memoized timer display component
-const TimerDisplay = memo(({ remainingTime }: { remainingTime: number }) => {
-  const mins = Math.floor(remainingTime / 60);
-  const secs = Math.floor(remainingTime % 60);
+const TimerDisplay = memo(
+  ({
+    remainingTime,
+    lowAnimationMode,
+  }: {
+    remainingTime: number;
+    lowAnimationMode: boolean;
+  }) => {
+    const mins = Math.floor(remainingTime / 60);
+    const secs = Math.floor(remainingTime % 60);
 
-  return (
-    <div className="text-4xl font-barlow font-bold text-neutral-800 dark:text-neutral-200">
-      <NumberFlowGroup>
-        <div
-          style={
-            {
-              fontVariantNumeric: "tabular-nums",
-              "--number-flow-char-height": "0.85em",
-            } as React.CSSProperties
-          }
-        >
-          <NumberFlow
-            trend={-1}
-            value={mins}
-            format={{ minimumIntegerDigits: 2 }}
-          />
-          <NumberFlow
-            prefix=":"
-            trend={-1}
-            value={secs}
-            digits={{ 1: { max: 5 } }}
-            format={{ minimumIntegerDigits: 2 }}
-          />
-        </div>
-      </NumberFlowGroup>
-    </div>
-  );
-});
+    const formattedTime = `${mins.toString().padStart(2, "0")}:${secs
+      .toString()
+      .padStart(2, "0")}`;
+
+    return (
+      <div className="text-4xl font-barlow font-bold text-neutral-800 dark:text-neutral-200">
+        {lowAnimationMode ? (
+          <div className="tabular-nums">
+            <AnimatePresence mode="wait" initial={false}>
+              <motion.span
+                key={formattedTime}
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -6 }}
+                transition={{ duration: 0.18, ease: "easeOut" }}
+                className="inline-block"
+              >
+                {formattedTime}
+              </motion.span>
+            </AnimatePresence>
+          </div>
+        ) : (
+          <NumberFlowGroup>
+            <div
+              style={
+                {
+                  fontVariantNumeric: "tabular-nums",
+                  "--number-flow-char-height": "0.85em",
+                } as React.CSSProperties
+              }
+            >
+              <NumberFlow
+                trend={-1}
+                value={mins}
+                format={{ minimumIntegerDigits: 2 }}
+              />
+              <NumberFlow
+                prefix=":"
+                trend={-1}
+                value={secs}
+                digits={{ 1: { max: 5 } }}
+                format={{ minimumIntegerDigits: 2 }}
+              />
+            </div>
+          </NumberFlowGroup>
+        )}
+      </div>
+    );
+  }
+);
 
 TimerDisplay.displayName = "TimerDisplay";
 
@@ -364,6 +393,7 @@ type TabType =
   | "sessions"
   | "blocks"
   | "packs"
+  | "settings"
   | "help"
   | "supporter"
   | "updates"
@@ -478,6 +508,15 @@ const Tabs = memo(
             showIndicator={hasBlocks}
           />
           <TabItem
+            id="settings"
+            label="Settings"
+            activeTab={activeTab}
+            onClick={() => {
+              setActiveTab("settings");
+              setIsExpanded(true);
+            }}
+          />
+          <TabItem
             id="help"
             label="Help"
             activeTab={activeTab}
@@ -571,6 +610,7 @@ const MainSlideover = memo(function MainSlideover({
     | "sessions"
     | "blocks"
     | "packs"
+    | "settings"
     | "help"
     | "supporter"
     | "updates"
@@ -584,6 +624,7 @@ const MainSlideover = memo(function MainSlideover({
   const [notificationPermission, setNotificationPermission] =
     useState<NotificationPermission | null>(null);
   const [pausedAt, setPausedAt] = useState<number | null>(null);
+  const [lowAnimationMode, setLowAnimationMode] = useState(false);
 
   const { user, profile, sessionId } = useAuth();
   const effectiveSessionId = user?.id || sessionId || browserSessionId;
@@ -598,6 +639,20 @@ const MainSlideover = memo(function MainSlideover({
   useEffect(() => {
     setBrowserSessionId(getBrowserSessionId());
   }, []);
+
+  useEffect(() => {
+    const storedPreference = localStorage.getItem("gardenspace_low_animation");
+    if (storedPreference !== null) {
+      setLowAnimationMode(storedPreference === "true");
+    }
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem(
+      "gardenspace_low_animation",
+      lowAnimationMode ? "true" : "false"
+    );
+  }, [lowAnimationMode]);
 
   // Check notification permission on mount
   useEffect(() => {
@@ -1417,7 +1472,10 @@ const MainSlideover = memo(function MainSlideover({
                                     Break Time
                                   </div>
                                 )}
-                                <TimerDisplay remainingTime={remainingTime} />
+                                <TimerDisplay
+                                  remainingTime={remainingTime}
+                                  lowAnimationMode={lowAnimationMode}
+                                />
                               </div>
                               <div className="flex gap-2">
                                 <button
@@ -1930,6 +1988,35 @@ const MainSlideover = memo(function MainSlideover({
                         })}
                       </div>
                     )}
+                  </div>
+                )}
+
+                {activeTab === "settings" && (
+                  <div className="space-y-3">
+                    <div className="bg-neutral-50 dark:bg-neutral-900 rounded-lg p-4 flex items-start justify-between gap-4">
+                      <div className="space-y-1">
+                        <p className="text-sm font-semibold text-neutral-900 dark:text-neutral-100 font-barlow">
+                          Low animation mode
+                        </p>
+                        <p className="text-sm text-neutral-600 dark:text-neutral-400">
+                          Reduces motion in the timer countdown by switching to a subtle fade instead of falling numbers.
+                        </p>
+                      </div>
+                      <label className="relative inline-flex items-center cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          className="sr-only peer"
+                          checked={lowAnimationMode}
+                          onChange={(e) => setLowAnimationMode(e.target.checked)}
+                        />
+                        <div className="w-11 h-6 bg-neutral-200 peer-focus:outline-none rounded-full peer peer-checked:bg-green-500 transition-colors relative">
+                          <div className="absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transform transition-transform peer-checked:translate-x-5" />
+                        </div>
+                      </label>
+                    </div>
+                    <p className="text-xs text-neutral-500 dark:text-neutral-400">
+                      Preference is saved on this device.
+                    </p>
                   </div>
                 )}
 
