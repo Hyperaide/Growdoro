@@ -103,20 +103,7 @@ const TimerDisplay = memo(
     return (
       <div className="text-4xl font-barlow font-bold text-neutral-800 dark:text-neutral-200">
         {lowAnimationMode ? (
-          <div className="tabular-nums">
-            <AnimatePresence mode="wait" initial={false}>
-              <motion.span
-                key={formattedTime}
-                initial={{ opacity: 0, y: 6 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -6 }}
-                transition={{ duration: 0.18, ease: "easeOut" }}
-                className="inline-block"
-              >
-                {formattedTime}
-              </motion.span>
-            </AnimatePresence>
-          </div>
+          <span className="tabular-nums inline-block">{formattedTime}</span>
         ) : (
           <NumberFlowGroup>
             <div
