@@ -1986,7 +1986,7 @@ const MainSlideover = memo(function MainSlideover({
                           Low animation mode
                         </p>
                         <p className="text-sm text-neutral-600 dark:text-neutral-400">
-                          Reduces motion in the timer countdown by switching to a subtle fade instead of falling numbers.
+                          Reduces motion in the timer countdown by switching to instant number changes with no animation.
                         </p>
                       </div>
                       <label className="relative inline-flex items-center cursor-pointer select-none">
@@ -1996,9 +1996,7 @@ const MainSlideover = memo(function MainSlideover({
                           checked={lowAnimationMode}
                           onChange={(e) => setLowAnimationMode(e.target.checked)}
                         />
-                        <div className="w-11 h-6 bg-neutral-200 peer-focus:outline-none rounded-full peer peer-checked:bg-green-500 transition-colors relative">
-                          <div className="absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transform transition-transform peer-checked:translate-x-5" />
-                        </div>
+                        <div className="w-11 h-6 bg-neutral-200 relative rounded-full transition-colors peer-checked:bg-green-500 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:h-5 after:w-5 after:bg-white after:rounded-full after:shadow after:transition-transform after:duration-200 after:transform peer-checked:after:translate-x-[20px]" />
                       </label>
                     </div>
                     <p className="text-xs text-neutral-500 dark:text-neutral-400">
