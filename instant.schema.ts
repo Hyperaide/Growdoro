@@ -27,6 +27,7 @@ const _schema = i.schema({
       type: i.string(),
       sessionId: i.string().optional().indexed(),
       plantedAt: i.date().optional(),
+      removedAt: i.date().optional(),
     }),
     sessions: i.entity({
       sessionId: i.string().optional().indexed(),
@@ -38,6 +39,14 @@ const _schema = i.schema({
       rewardsClaimedAt: i.date().optional(),
       cancelledAt: i.date().optional().indexed(),
       type: i.string().optional().indexed(), // 'focus' or 'break'
+    }),
+    transactions: i.entity({
+      amount: i.number(),
+      type: i.string(), // credit or debit
+      reason: i.string().optional(),
+      blockType: i.string().optional(),
+      sessionId: i.string().optional().indexed(),
+      createdAt: i.date(),
     }),
   },
   links: {
@@ -52,6 +61,10 @@ const _schema = i.schema({
     userBlocks: {
       forward: { on: 'blocks', has: 'one', label: 'user' },
       reverse: { on: '$users', has: 'many', label: 'blocks' }
+    },
+    userTransactions: {
+      forward: { on: 'transactions', has: 'one', label: 'user' },
+      reverse: { on: '$users', has: 'many', label: 'transactions' }
     },
   },
   rooms: {},

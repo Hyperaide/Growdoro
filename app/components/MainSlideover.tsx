@@ -15,6 +15,9 @@ import {
   SealCheckIcon,
   SparkleIcon,
   CircleNotchIcon,
+  CoinsIcon,
+  ShoppingCartSimpleIcon,
+  StorefrontIcon,
 } from "@phosphor-icons/react";
 import { motion, AnimatePresence } from "motion/react";
 import { useRef, useState, useEffect, useMemo, useCallback, memo } from "react";
@@ -24,6 +27,8 @@ import {
   BLOCK_TYPES,
   BlockTypeId,
   getBlockDisplayImage,
+  getBlockPurchaseCost,
+  getBlockSellValue,
 } from "../constants/blocks";
 import PackOpeningModal from "./PackOpeningModal";
 import NumberFlow, { NumberFlowGroup } from "@number-flow/react";
@@ -69,6 +74,16 @@ interface Block {
   z?: number;
   type: string;
   sessionId?: string;
+  removedAt?: string | null;
+}
+
+interface Transaction {
+  id: string;
+  amount: number;
+  type: "credit" | "debit";
+  reason?: string;
+  blockType?: string;
+  createdAt: string | number;
 }
 
 // Get or create a browser session ID
@@ -363,6 +378,7 @@ type TabType =
   | "timer"
   | "sessions"
   | "blocks"
+  | "store"
   | "packs"
   | "help"
   | "supporter"
@@ -478,6 +494,15 @@ const Tabs = memo(
             showIndicator={hasBlocks}
           />
           <TabItem
+            id="store"
+            label="Store"
+            activeTab={activeTab}
+            onClick={() => {
+              setActiveTab("store");
+              setIsExpanded(true);
+            }}
+          />
+          <TabItem
             id="help"
             label="Help"
             activeTab={activeTab}
@@ -570,6 +595,7 @@ const MainSlideover = memo(function MainSlideover({
     | "timer"
     | "sessions"
     | "blocks"
+    | "store"
     | "packs"
     | "help"
     | "supporter"
@@ -584,6 +610,9 @@ const MainSlideover = memo(function MainSlideover({
   const [notificationPermission, setNotificationPermission] =
     useState<NotificationPermission | null>(null);
   const [pausedAt, setPausedAt] = useState<number | null>(null);
+  const [sellingBlockType, setSellingBlockType] = useState<string | null>(null);
+  const [purchasingBlockType, setPurchasingBlockType] =
+    useState<string | null>(null);
 
   const { user, profile, sessionId } = useAuth();
   const effectiveSessionId = user?.id || sessionId || browserSessionId;
@@ -650,10 +679,23 @@ const MainSlideover = memo(function MainSlideover({
                 ? {
                     "user.id": user.id,
                     x: { $isNull: true },
+                    removedAt: { $isNull: true },
                   }
                 : {
                     sessionId: effectiveSessionId,
                     x: { $isNull: true },
+                    removedAt: { $isNull: true },
+                  },
+            },
+          },
+          transactions: {
+            $: {
+              where: user
+                ? {
+                    "user.id": user.id,
+                  }
+                : {
+                    sessionId: effectiveSessionId,
                   },
             },
           },
@@ -663,6 +705,7 @@ const MainSlideover = memo(function MainSlideover({
 
   const sessions = data?.sessions || [];
   const unplacedBlocks = data?.blocks || [];
+  const transactions = (data?.transactions || []) as Transaction[];
 
   // Memoize expensive calculations
   const sessionsWithUnclaimedRewards = useMemo(() => {
@@ -691,6 +734,25 @@ const MainSlideover = memo(function MainSlideover({
       return acc;
     }, {} as Record<string, number>);
   }, [unplacedBlocks]);
+
+  const coinBalance = useMemo(() => {
+    return transactions.reduce((acc, transaction) => acc + transaction.amount, 0);
+  }, [transactions]);
+
+  const sortedTransactions = useMemo(() => {
+    return [...transactions].sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+  }, [transactions]);
+
+  const storeBlocks = useMemo(() => {
+    return Object.values(BLOCK_TYPES).sort((a, b) => {
+      if (a.category === b.category) {
+        return getBlockPurchaseCost(a) - getBlockPurchaseCost(b);
+      }
+      return a.category.localeCompare(b.category);
+    });
+  }, []);
 
   // Load the latest active timer on mount or when sessions change
   useEffect(() => {
@@ -1043,6 +1105,151 @@ const MainSlideover = memo(function MainSlideover({
     return `${mins} min`;
   }, []);
 
+  const createCoinTransaction = useCallback(
+    (
+      amount: number,
+      type: "credit" | "debit",
+      reason: string,
+      blockType?: string
+    ) => {
+      const transactionId = id();
+      const baseData: any = {
+        amount,
+        type,
+        reason,
+        blockType,
+        createdAt: new Date().toISOString(),
+      };
+
+      if (user) {
+        return db.tx.transactions[transactionId]
+          .update(baseData)
+          .link({ user: user.id });
+      }
+
+      return db.tx.transactions[transactionId].update({
+        ...baseData,
+        sessionId: effectiveSessionId,
+      });
+    },
+    [effectiveSessionId, user]
+  );
+
+  const handleQuickSell = useCallback(
+    async (blockTypeId: string) => {
+      const blockType = BLOCK_TYPES[blockTypeId as BlockTypeId];
+      if (!blockType || !effectiveSessionId) return;
+
+      setSellingBlockType(blockTypeId);
+      try {
+        const { data } = await db.queryOnce({
+          blocks: {
+            $: {
+              where: user
+                ? {
+                    "user.id": user.id,
+                    type: blockTypeId,
+                    x: { $isNull: true },
+                    removedAt: { $isNull: true },
+                  }
+                : {
+                    sessionId: effectiveSessionId,
+                    type: blockTypeId,
+                    x: { $isNull: true },
+                    removedAt: { $isNull: true },
+                  },
+              limit: 1,
+            },
+          },
+        });
+
+        const blockToSell = data?.blocks?.[0];
+
+        if (!blockToSell) {
+          alert("No available blocks of this type to sell.");
+          return;
+        }
+
+        const sellValue = getBlockSellValue(blockType);
+        await db.transact([
+          db.tx.blocks[blockToSell.id].update({
+            removedAt: new Date().toISOString(),
+          }),
+          createCoinTransaction(
+            sellValue,
+            "credit",
+            `Sold ${blockType.name}`,
+            blockTypeId
+          ),
+        ]);
+      } catch (error) {
+        console.error("Failed to sell block", error);
+        alert("Could not sell this block. Please try again.");
+      } finally {
+        setSellingBlockType(null);
+      }
+    },
+    [createCoinTransaction, effectiveSessionId, user]
+  );
+
+  const handlePurchaseBlock = useCallback(
+    async (blockTypeId: string) => {
+      const blockType = BLOCK_TYPES[blockTypeId as BlockTypeId];
+      if (!blockType || !effectiveSessionId) return;
+
+      if (blockType.supporterOnly && !profile?.supporter) {
+        alert("This block is reserved for supporters.");
+        return;
+      }
+
+      const cost = getBlockPurchaseCost(blockType);
+      if (coinBalance < cost) {
+        alert("Not enough coins to purchase this block.");
+        return;
+      }
+
+      setPurchasingBlockType(blockTypeId);
+      const blockId = id();
+
+      try {
+        const purchaseTransaction = createCoinTransaction(
+          -cost,
+          "debit",
+          `Purchased ${blockType.name}`,
+          blockTypeId
+        );
+
+        const blockUpdate = user
+          ? db.tx.blocks[blockId].update({
+              type: blockTypeId,
+            }).link({
+              user: user.id,
+            })
+          : db.tx.blocks[blockId].update({
+              type: blockTypeId,
+              sessionId: effectiveSessionId,
+            });
+
+        await db.transact([purchaseTransaction, blockUpdate]);
+        onSelectBlockType?.(blockTypeId);
+        setActiveTab("blocks");
+      } catch (error) {
+        console.error("Failed to purchase block", error);
+        alert("Could not purchase this block right now.");
+      } finally {
+        setPurchasingBlockType(null);
+      }
+    },
+    [
+      coinBalance,
+      createCoinTransaction,
+      effectiveSessionId,
+      onSelectBlockType,
+      profile?.supporter,
+      user,
+    ]
+  );
+
   // Update time/date less frequently
   const [currentTime, setCurrentTime] = useState(() =>
     new Date().toLocaleTimeString("en-US", {
@@ -1152,6 +1359,20 @@ const MainSlideover = memo(function MainSlideover({
                 <ArrowsOutSimpleIcon size={14} weight="bold" className="text-gray-800" />
               </button>
               )} */}
+            </div>
+            <div className="flex items-center justify-between mb-2">
+              <button
+                onClick={() => setActiveTab("store")}
+                className="inline-flex items-center gap-2 px-2 py-1 rounded-md bg-amber-50 dark:bg-amber-900/40 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-100"
+              >
+                <CoinsIcon size={16} weight="fill" />
+                <span className="text-sm font-mono font-semibold">
+                  {coinBalance.toLocaleString()} coins
+                </span>
+              </button>
+              <div className="text-[10px] uppercase font-semibold text-neutral-500 dark:text-neutral-400">
+                Sell blocks or shop in the Store
+              </div>
             </div>
             <div className="flex flex-row">
               <Tabs
@@ -1897,6 +2118,7 @@ const MainSlideover = memo(function MainSlideover({
                         {Object.entries(blockInventory).map(([type, count]) => {
                           const blockType = BLOCK_TYPES[type as BlockTypeId];
                           if (!blockType) return null;
+                          const sellValue = getBlockSellValue(blockType);
 
                           return (
                             <div
@@ -1925,11 +2147,172 @@ const MainSlideover = memo(function MainSlideover({
                               <div className="text-[10px] text-neutral-500 dark:text-neutral-400 mt-1 uppercase font-semibold">
                                 Click to place
                               </div>
+                              <button
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  handleQuickSell(type);
+                                }}
+                                disabled={sellingBlockType === type}
+                                className="mt-2 inline-flex items-center justify-center gap-1 w-full text-[10px] font-semibold uppercase rounded-md bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-200 px-2 py-1 disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                <CoinsIcon size={12} weight="fill" />
+                                {sellingBlockType === type
+                                  ? "Selling..."
+                                  : `Sell for ${sellValue}`}
+                              </button>
                             </div>
                           );
                         })}
                       </div>
                     )}
+                  </div>
+                )}
+
+                {activeTab === "store" && (
+                  <div className="flex-1 overflow-y-auto space-y-4">
+                    <div className="bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg p-3">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-[11px] uppercase text-neutral-500 dark:text-neutral-400 font-semibold">
+                            Coin Balance
+                          </p>
+                          <div className="flex items-center gap-2 mt-1">
+                            <CoinsIcon size={18} weight="fill" className="text-amber-500" />
+                            <span className="text-xl font-mono font-semibold text-neutral-900 dark:text-neutral-100">
+                              {coinBalance.toLocaleString()}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="text-[11px] uppercase text-neutral-500 dark:text-neutral-400 font-semibold text-right">
+                          Transaction-based balance
+                          <p className="text-[10px] normal-case font-normal text-neutral-500 dark:text-neutral-400">
+                            Credits add coins, debits spend them
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <h3 className="text-xs uppercase font-semibold text-neutral-700 dark:text-neutral-300">
+                          Buy Blocks
+                        </h3>
+                        <div className="flex items-center gap-1 text-[10px] text-neutral-500 dark:text-neutral-400">
+                          <ShoppingCartSimpleIcon size={14} />
+                          <span>Supporter blocks require an active badge</span>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3">
+                        {storeBlocks.map((block) => {
+                          const cost = getBlockPurchaseCost(block);
+                          const locked = block.supporterOnly && !profile?.supporter;
+
+                          return (
+                            <div
+                              key={block.id}
+                              className="bg-neutral-50 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-800 rounded-lg p-3 flex flex-col gap-2"
+                            >
+                              <div className="flex items-start justify-between gap-2">
+                                <div>
+                                  <p className="text-sm font-semibold text-neutral-800 dark:text-neutral-200">
+                                    {block.name}
+                                  </p>
+                                  <p className="text-[10px] uppercase text-neutral-500 dark:text-neutral-400">
+                                    {block.category}
+                                  </p>
+                                </div>
+                                {block.supporterOnly && (
+                                  <span className="text-[10px] px-2 py-1 rounded-md bg-sky-100 text-sky-700 dark:bg-sky-900/60 dark:text-sky-200 font-semibold">
+                                    Supporter
+                                  </span>
+                                )}
+                              </div>
+
+                              <div className="flex justify-center">
+                                <img
+                                  src={getBlockDisplayImage(block) || ""}
+                                  alt={block.name}
+                                  className="w-16 h-16 pixelated"
+                                />
+                              </div>
+
+                              <div className="flex items-center justify-between text-xs text-neutral-700 dark:text-neutral-300">
+                                <div className="flex items-center gap-1 font-semibold">
+                                  <CoinsIcon size={14} weight="fill" />
+                                  <span>{cost}</span>
+                                </div>
+                                <span className="text-[10px] uppercase font-semibold text-neutral-500 dark:text-neutral-400">
+                                  {block.rarity}
+                                </span>
+                              </div>
+
+                              <button
+                                onClick={() => handlePurchaseBlock(block.id)}
+                                disabled={
+                                  purchasingBlockType === block.id ||
+                                  locked ||
+                                  coinBalance < cost
+                                }
+                                className="text-xs font-semibold uppercase rounded-md px-2 py-1 bg-green-600 text-white hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                {locked
+                                  ? "Supporter Only"
+                                  : purchasingBlockType === block.id
+                                  ? "Purchasing..."
+                                  : coinBalance < cost
+                                  ? "Need Coins"
+                                  : "Buy"}
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    <div className="bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg p-3">
+                      <div className="flex items-center gap-2 mb-2">
+                        <StorefrontIcon size={16} className="text-neutral-700 dark:text-neutral-300" />
+                        <h4 className="text-xs uppercase font-semibold text-neutral-700 dark:text-neutral-300">
+                          Transactions
+                        </h4>
+                      </div>
+
+                      {sortedTransactions.length === 0 ? (
+                        <p className="text-sm text-neutral-500 dark:text-neutral-400">
+                          No transactions yet. Sell a block or make a purchase to get started.
+                        </p>
+                      ) : (
+                        <div className="space-y-2">
+                          {sortedTransactions.slice(0, 12).map((transaction) => {
+                            const isCredit = transaction.amount >= 0;
+                            return (
+                              <div
+                                key={transaction.id}
+                                className="flex items-center justify-between text-xs bg-white dark:bg-neutral-800 rounded-md px-2 py-1"
+                              >
+                                <div className="flex flex-col">
+                                  <span className="font-semibold text-neutral-800 dark:text-neutral-200">
+                                    {transaction.reason || "Transaction"}
+                                  </span>
+                                  <span className="text-[10px] text-neutral-500 dark:text-neutral-400">
+                                    {new Date(transaction.createdAt).toLocaleString()}
+                                  </span>
+                                </div>
+                                <div
+                                  className={`font-mono text-sm ${
+                                    isCredit ? "text-green-600" : "text-amber-600"
+                                  }`}
+                                >
+                                  {isCredit ? "+" : ""}
+                                  {transaction.amount}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
 

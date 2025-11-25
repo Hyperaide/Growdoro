@@ -28,6 +28,15 @@ export interface BlockType {
   supporterOnly?: boolean; // Optional flag to indicate if the block is only available to supporters
 }
 
+export const RARITY_PRICING = {
+  common: { buy: 30, sell: 10 },
+  uncommon: { buy: 60, sell: 20 },
+  rare: { buy: 150, sell: 50 },
+  legendary: { buy: 300, sell: 120 },
+} as const;
+
+export type RarityPricingKey = keyof typeof RARITY_PRICING;
+
 export const BLOCK_TYPES: Record<string, BlockType> = {
   'dirt': {
     id: 'dirt',
@@ -427,4 +436,10 @@ export function getBlockDisplayImage(blockType: BlockType): string | undefined {
 }
 
 // Extract block IDs for type safety
-export type BlockTypeId = keyof typeof BLOCK_TYPES; 
+export type BlockTypeId = keyof typeof BLOCK_TYPES;
+
+export const getBlockPurchaseCost = (blockType: BlockType) =>
+  RARITY_PRICING[blockType.rarity].buy;
+
+export const getBlockSellValue = (blockType: BlockType) =>
+  RARITY_PRICING[blockType.rarity].sell;

@@ -93,7 +93,22 @@ function AuthContextProviderInner({ children }: { children: React.ReactNode }) {
               }
             });
 
-            if (data?.blocks && data.blocks.length > 0) {
+            const { data: sessionTransactions } = await db.queryOnce({
+              transactions: {
+                $: {
+                  where: {
+                    sessionId: sessionId
+                  }
+                }
+              }
+            });
+
+            if (
+              ((data?.blocks && data.blocks.length > 0) ||
+                (sessionTransactions?.transactions &&
+                  sessionTransactions.transactions.length > 0)) &&
+              user
+            ) {
 
 
               // get all the user blocks
@@ -109,18 +124,30 @@ function AuthContextProviderInner({ children }: { children: React.ReactNode }) {
 
 
               // Create transactions to update each block to belong to the user as long as a user block doesnt already exist in x, y, z
-              const transactions = data.blocks.map(block => {
-                const userBlock = userBlocks.blocks.find((b: any) => b.x === block.x && b.y === block.y && b.z === block.z);
-                if (!userBlock) {
-                  return db.tx.blocks[block.id].link({
-                    user: user.id
-                  });
-                }
-              });
+              const transactions = [
+                ...(data?.blocks || []).map(block => {
+                  const userBlock = userBlocks.blocks.find((b: any) => b.x === block.x && b.y === block.y && b.z === block.z);
+                  if (!userBlock) {
+                    return db.tx.blocks[block.id].link({
+                      user: user.id
+                    });
+                  }
+                  return null;
+                }),
+                ...((sessionTransactions?.transactions || []).map((transaction: any) =>
+                  db.tx.transactions[transaction.id]
+                    .update({
+                      sessionId: null
+                    })
+                    .link({
+                      user: user.id
+                    })
+                ) || [])
+              ].filter(Boolean);
 
               // Execute all updates in a single transaction
               await db.transact(transactions as any);
-              console.log(`Transferred ${data.blocks.length} blocks from session to user ${user.id}`);
+              console.log(`Transferred ${data?.blocks?.length || 0} blocks and ${sessionTransactions?.transactions?.length || 0} transactions from session to user ${user.id}`);
             }
           } catch (error) {
             console.error('Failed to transfer session blocks:', error);
