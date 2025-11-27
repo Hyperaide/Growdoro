@@ -1363,14 +1363,15 @@ const MainSlideover = memo(function MainSlideover({
             <div className="flex items-center justify-between mb-2">
               <button
                 onClick={() => setActiveTab("store")}
-                className="inline-flex items-center gap-2 px-2 py-1 rounded-md bg-amber-50 dark:bg-amber-900/40 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-100"
+                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-gradient-to-r from-amber-50 to-amber-100 dark:from-amber-900/50 dark:to-amber-800/50 border border-amber-300 dark:border-amber-700 text-amber-900 dark:text-amber-100 hover:from-amber-100 hover:to-amber-200 dark:hover:from-amber-800/60 dark:hover:to-amber-700/60 transition-all shadow-sm hover:shadow-md"
               >
-                <CoinsIcon size={16} weight="fill" />
-                <span className="text-sm font-mono font-semibold">
-                  {coinBalance.toLocaleString()} coins
+                <CoinsIcon size={18} weight="fill" className="text-amber-600 dark:text-amber-400" />
+                <span className="text-sm font-mono font-bold">
+                  {coinBalance.toLocaleString()}
                 </span>
+                <span className="text-xs font-semibold uppercase">coins</span>
               </button>
-              <div className="text-[10px] uppercase font-semibold text-neutral-500 dark:text-neutral-400">
+              <div className="text-[10px] uppercase font-semibold text-neutral-500 dark:text-neutral-400 text-right max-w-[120px]">
                 Sell blocks or shop in the Store
               </div>
             </div>
@@ -2123,7 +2124,7 @@ const MainSlideover = memo(function MainSlideover({
                           return (
                             <div
                               key={type}
-                              className="bg-neutral-50 dark:bg-neutral-800 rounded-lg p-3 text-center hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors cursor-pointer"
+                              className="bg-white dark:bg-neutral-800 border-2 border-neutral-200 dark:border-neutral-700 rounded-xl p-3 text-center hover:border-neutral-300 dark:hover:border-neutral-600 transition-all cursor-pointer shadow-sm hover:shadow-md"
                               onClick={() => {
                                 if (onSelectBlockType) {
                                   onSelectBlockType(type);
@@ -2131,20 +2132,22 @@ const MainSlideover = memo(function MainSlideover({
                                 }
                               }}
                             >
-                              <div className="relative">
-                                <img
-                                  src={getBlockDisplayImage(blockType) || ""}
-                                  alt={blockType.name}
-                                  className="w-16 h-16 mx-auto mb-2 pixelated"
-                                />
-                                <span className="absolute top-0 right-0 bg-green-600 text-white  text-xs px-1.5 py-0.5 rounded">
+                              <div className="relative mb-2">
+                                <div className="flex justify-center bg-neutral-50 dark:bg-neutral-900 rounded-lg p-2">
+                                  <img
+                                    src={getBlockDisplayImage(blockType) || ""}
+                                    alt={blockType.name}
+                                    className="w-16 h-16 pixelated"
+                                  />
+                                </div>
+                                <span className="absolute -top-1 -right-1 bg-gradient-to-r from-green-600 to-green-700 text-white text-xs font-bold px-2 py-0.5 rounded-full shadow-md border-2 border-white dark:border-neutral-800">
                                   {count}
                                 </span>
                               </div>
-                              <div className="text-xs font-medium text-neutral-700 dark:text-neutral-300">
+                              <div className="text-xs font-bold text-neutral-900 dark:text-neutral-100 mb-1">
                                 {blockType.name}
                               </div>
-                              <div className="text-[10px] text-neutral-500 dark:text-neutral-400 mt-1 uppercase font-semibold">
+                              <div className="text-[10px] text-neutral-500 dark:text-neutral-400 mb-2 uppercase font-semibold">
                                 Click to place
                               </div>
                               <button
@@ -2153,12 +2156,12 @@ const MainSlideover = memo(function MainSlideover({
                                   handleQuickSell(type);
                                 }}
                                 disabled={sellingBlockType === type}
-                                className="mt-2 inline-flex items-center justify-center gap-1 w-full text-[10px] font-semibold uppercase rounded-md bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-200 px-2 py-1 disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="inline-flex items-center justify-center gap-1.5 w-full text-[10px] font-bold uppercase rounded-lg bg-gradient-to-r from-amber-100 to-amber-200 dark:from-amber-900/60 dark:to-amber-800/60 text-amber-800 dark:text-amber-200 px-2.5 py-1.5 hover:from-amber-200 hover:to-amber-300 dark:hover:from-amber-800/70 dark:hover:to-amber-700/70 transition-all shadow-sm hover:shadow disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-sm"
                               >
-                                <CoinsIcon size={12} weight="fill" />
+                                <CoinsIcon size={14} weight="fill" />
                                 {sellingBlockType === type
                                   ? "Selling..."
-                                  : `Sell for ${sellValue}`}
+                                  : `Sell ${sellValue}`}
                               </button>
                             </div>
                           );
@@ -2170,36 +2173,38 @@ const MainSlideover = memo(function MainSlideover({
 
                 {activeTab === "store" && (
                   <div className="flex-1 overflow-y-auto space-y-4">
-                    <div className="bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg p-3">
+                    <div className="bg-gradient-to-br from-amber-50 to-amber-100 dark:from-amber-900/30 dark:to-amber-800/30 border-2 border-amber-200 dark:border-amber-700 rounded-xl p-4 shadow-sm">
                       <div className="flex items-center justify-between">
                         <div>
-                          <p className="text-[11px] uppercase text-neutral-500 dark:text-neutral-400 font-semibold">
+                          <p className="text-[11px] uppercase text-amber-700 dark:text-amber-300 font-bold tracking-wide mb-2">
                             Coin Balance
                           </p>
-                          <div className="flex items-center gap-2 mt-1">
-                            <CoinsIcon size={18} weight="fill" className="text-amber-500" />
-                            <span className="text-xl font-mono font-semibold text-neutral-900 dark:text-neutral-100">
+                          <div className="flex items-center gap-2.5">
+                            <div className="p-2 bg-amber-200 dark:bg-amber-800/50 rounded-lg">
+                              <CoinsIcon size={20} weight="fill" className="text-amber-700 dark:text-amber-300" />
+                            </div>
+                            <span className="text-2xl font-mono font-bold text-neutral-900 dark:text-neutral-100">
                               {coinBalance.toLocaleString()}
                             </span>
                           </div>
                         </div>
-                        <div className="text-[11px] uppercase text-neutral-500 dark:text-neutral-400 font-semibold text-right">
-                          Transaction-based balance
-                          <p className="text-[10px] normal-case font-normal text-neutral-500 dark:text-neutral-400">
-                            Credits add coins, debits spend them
+                        <div className="text-[10px] uppercase text-amber-600 dark:text-amber-400 font-semibold text-right max-w-[140px]">
+                          Transaction-based
+                          <p className="text-[9px] normal-case font-normal text-neutral-500 dark:text-neutral-400 mt-1">
+                            Credits add, debits spend
                           </p>
                         </div>
                       </div>
                     </div>
 
-                    <div className="space-y-2">
+                    <div className="space-y-3">
                       <div className="flex items-center justify-between">
-                        <h3 className="text-xs uppercase font-semibold text-neutral-700 dark:text-neutral-300">
+                        <h3 className="text-xs uppercase font-bold text-neutral-800 dark:text-neutral-200 tracking-wide">
                           Buy Blocks
                         </h3>
-                        <div className="flex items-center gap-1 text-[10px] text-neutral-500 dark:text-neutral-400">
-                          <ShoppingCartSimpleIcon size={14} />
-                          <span>Supporter blocks require an active badge</span>
+                        <div className="flex items-center gap-1.5 text-[10px] text-neutral-500 dark:text-neutral-400 bg-neutral-100 dark:bg-neutral-800 px-2 py-1 rounded-md">
+                          <ShoppingCartSimpleIcon size={12} />
+                          <span>Supporter blocks require badge</span>
                         </div>
                       </div>
 
@@ -2207,29 +2212,30 @@ const MainSlideover = memo(function MainSlideover({
                         {storeBlocks.map((block) => {
                           const cost = getBlockPurchaseCost(block);
                           const locked = block.supporterOnly && !profile?.supporter;
+                          const canAfford = coinBalance >= cost;
 
                           return (
                             <div
                               key={block.id}
-                              className="bg-neutral-50 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-800 rounded-lg p-3 flex flex-col gap-2"
+                              className="bg-white dark:bg-neutral-800 border-2 border-neutral-200 dark:border-neutral-700 rounded-xl p-3 flex flex-col gap-2.5 hover:border-neutral-300 dark:hover:border-neutral-600 transition-all shadow-sm hover:shadow-md"
                             >
                               <div className="flex items-start justify-between gap-2">
-                                <div>
-                                  <p className="text-sm font-semibold text-neutral-800 dark:text-neutral-200">
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-bold text-neutral-900 dark:text-neutral-100 truncate">
                                     {block.name}
                                   </p>
-                                  <p className="text-[10px] uppercase text-neutral-500 dark:text-neutral-400">
+                                  <p className="text-[10px] uppercase text-neutral-500 dark:text-neutral-400 font-semibold tracking-wide">
                                     {block.category}
                                   </p>
                                 </div>
                                 {block.supporterOnly && (
-                                  <span className="text-[10px] px-2 py-1 rounded-md bg-sky-100 text-sky-700 dark:bg-sky-900/60 dark:text-sky-200 font-semibold">
+                                  <span className="text-[9px] px-2 py-0.5 rounded-md bg-gradient-to-r from-sky-100 to-sky-200 dark:from-sky-900/60 dark:to-sky-800/60 text-sky-700 dark:text-sky-200 font-bold whitespace-nowrap">
                                     Supporter
                                   </span>
                                 )}
                               </div>
 
-                              <div className="flex justify-center">
+                              <div className="flex justify-center bg-neutral-50 dark:bg-neutral-900 rounded-lg p-2">
                                 <img
                                   src={getBlockDisplayImage(block) || ""}
                                   alt={block.name}
@@ -2237,12 +2243,12 @@ const MainSlideover = memo(function MainSlideover({
                                 />
                               </div>
 
-                              <div className="flex items-center justify-between text-xs text-neutral-700 dark:text-neutral-300">
-                                <div className="flex items-center gap-1 font-semibold">
-                                  <CoinsIcon size={14} weight="fill" />
-                                  <span>{cost}</span>
+                              <div className="flex items-center justify-between text-xs">
+                                <div className="flex items-center gap-1.5 font-bold text-amber-700 dark:text-amber-400">
+                                  <CoinsIcon size={16} weight="fill" />
+                                  <span className="text-sm">{cost}</span>
                                 </div>
-                                <span className="text-[10px] uppercase font-semibold text-neutral-500 dark:text-neutral-400">
+                                <span className="text-[10px] uppercase font-semibold text-neutral-500 dark:text-neutral-400 px-2 py-0.5 bg-neutral-100 dark:bg-neutral-700 rounded">
                                   {block.rarity}
                                 </span>
                               </div>
@@ -2252,17 +2258,25 @@ const MainSlideover = memo(function MainSlideover({
                                 disabled={
                                   purchasingBlockType === block.id ||
                                   locked ||
-                                  coinBalance < cost
+                                  !canAfford
                                 }
-                                className="text-xs font-semibold uppercase rounded-md px-2 py-1 bg-green-600 text-white hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                                className={`text-xs font-bold uppercase rounded-lg px-3 py-2 transition-all ${
+                                  locked
+                                    ? "bg-neutral-200 dark:bg-neutral-700 text-neutral-500 dark:text-neutral-400 cursor-not-allowed"
+                                    : !canAfford
+                                    ? "bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 cursor-not-allowed"
+                                    : purchasingBlockType === block.id
+                                    ? "bg-green-500 text-white cursor-wait"
+                                    : "bg-gradient-to-r from-green-600 to-green-700 text-white hover:from-green-700 hover:to-green-800 shadow-sm hover:shadow-md"
+                                } disabled:opacity-60 disabled:cursor-not-allowed`}
                               >
                                 {locked
                                   ? "Supporter Only"
                                   : purchasingBlockType === block.id
                                   ? "Purchasing..."
-                                  : coinBalance < cost
+                                  : !canAfford
                                   ? "Need Coins"
-                                  : "Buy"}
+                                  : "Buy Now"}
                               </button>
                             </div>
                           );
@@ -2270,38 +2284,50 @@ const MainSlideover = memo(function MainSlideover({
                       </div>
                     </div>
 
-                    <div className="bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg p-3">
-                      <div className="flex items-center gap-2 mb-2">
-                        <StorefrontIcon size={16} className="text-neutral-700 dark:text-neutral-300" />
-                        <h4 className="text-xs uppercase font-semibold text-neutral-700 dark:text-neutral-300">
-                          Transactions
+                    <div className="bg-white dark:bg-neutral-800 border-2 border-neutral-200 dark:border-neutral-700 rounded-xl p-4 shadow-sm">
+                      <div className="flex items-center gap-2 mb-3">
+                        <div className="p-1.5 bg-neutral-100 dark:bg-neutral-700 rounded-lg">
+                          <StorefrontIcon size={16} className="text-neutral-700 dark:text-neutral-300" />
+                        </div>
+                        <h4 className="text-xs uppercase font-bold text-neutral-800 dark:text-neutral-200 tracking-wide">
+                          Transaction History
                         </h4>
                       </div>
 
                       {sortedTransactions.length === 0 ? (
-                        <p className="text-sm text-neutral-500 dark:text-neutral-400">
-                          No transactions yet. Sell a block or make a purchase to get started.
-                        </p>
+                        <div className="text-center py-6">
+                          <div className="p-3 bg-neutral-50 dark:bg-neutral-900 rounded-lg inline-block mb-2">
+                            <StorefrontIcon size={24} className="text-neutral-400 dark:text-neutral-500" />
+                          </div>
+                          <p className="text-sm text-neutral-500 dark:text-neutral-400 font-medium">
+                            No transactions yet
+                          </p>
+                          <p className="text-xs text-neutral-400 dark:text-neutral-500 mt-1">
+                            Sell a block or make a purchase to get started
+                          </p>
+                        </div>
                       ) : (
-                        <div className="space-y-2">
+                        <div className="space-y-2 max-h-[300px] overflow-y-auto">
                           {sortedTransactions.slice(0, 12).map((transaction) => {
                             const isCredit = transaction.amount >= 0;
                             return (
                               <div
                                 key={transaction.id}
-                                className="flex items-center justify-between text-xs bg-white dark:bg-neutral-800 rounded-md px-2 py-1"
+                                className="flex items-center justify-between text-xs bg-neutral-50 dark:bg-neutral-900 rounded-lg px-3 py-2.5 border border-neutral-200 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
                               >
-                                <div className="flex flex-col">
-                                  <span className="font-semibold text-neutral-800 dark:text-neutral-200">
+                                <div className="flex flex-col flex-1 min-w-0">
+                                  <span className="font-bold text-neutral-900 dark:text-neutral-100 truncate">
                                     {transaction.reason || "Transaction"}
                                   </span>
-                                  <span className="text-[10px] text-neutral-500 dark:text-neutral-400">
+                                  <span className="text-[10px] text-neutral-500 dark:text-neutral-400 mt-0.5">
                                     {new Date(transaction.createdAt).toLocaleString()}
                                   </span>
                                 </div>
                                 <div
-                                  className={`font-mono text-sm ${
-                                    isCredit ? "text-green-600" : "text-amber-600"
+                                  className={`font-mono text-sm font-bold ml-3 ${
+                                    isCredit 
+                                      ? "text-green-600 dark:text-green-400" 
+                                      : "text-amber-600 dark:text-amber-400"
                                   }`}
                                 >
                                   {isCredit ? "+" : ""}
