@@ -3,8 +3,47 @@ import { NextResponse } from 'next/server';
 import { id } from '@instantdb/core';
 import { BLOCK_TYPES, BlockTypeId } from '../../constants/blocks';
 
+type RarityWeights = {
+  common: number;
+  uncommon: number;
+  rare: number;
+  legendary: number;
+};
+
+// Scale rarity weights based on session duration to reward longer focus
+const getRarityWeightsForDuration = (minutes: number): RarityWeights => {
+  if (minutes >= 45) {
+    return {
+      common: 50,
+      uncommon: 30,
+      rare: 15,
+      legendary: 5,
+    };
+  }
+
+  if (minutes >= 30) {
+    return {
+      common: 55,
+      uncommon: 30,
+      rare: 12,
+      legendary: 3,
+    };
+  }
+
+  return {
+    common: 60,
+    uncommon: 30,
+    rare: 8,
+    legendary: 2,
+  };
+};
+
 // Get random block types for rewards (ensuring at least one plant)
-const getRandomBlockTypes = (count: number, isSupporter: boolean = false): string[] => {
+const getRandomBlockTypes = (
+  count: number,
+  isSupporter: boolean = false,
+  minutes: number = 0
+): string[] => {
   const allBlockIds = Object.keys(BLOCK_TYPES);
   
   // Filter out supporter-only blocks if user is not a supporter
@@ -26,12 +65,7 @@ const getRandomBlockTypes = (count: number, isSupporter: boolean = false): strin
   const selected: string[] = [];
   
   // Rarity weights (must sum to 100)
-  const rarityWeights = {
-    common: 60,
-    uncommon: 30,
-    rare: 8,
-    legendary: 2
-  };
+  const rarityWeights = getRarityWeightsForDuration(minutes);
   
   // Get a random block based on rarity weights
   const getWeightedRandomBlock = (): string => {
@@ -155,18 +189,11 @@ export async function POST(request: Request) {
       console.log(`User ${userId} supporter status: ${isSupporter}`);
     }
 
-    // Determine pack size based on session duration
-    let packSize = 3; // Default for < 60 mins
     const minutes = Math.floor(sessionDuration / 60);
-    
-    if (minutes >= 45) {
-      packSize = 5; // 1 hour or more
-    } else if (minutes >= 30) {
-      packSize = 3; // Still 3 for 30-59 minutes
-    }
+    const packSize = 3; // All packs now provide three blocks
 
     // Get random block types with supporter filter
-    const rewardBlocks = getRandomBlockTypes(packSize, isSupporter);
+    const rewardBlocks = getRandomBlockTypes(packSize, isSupporter, minutes);
 
     // Create the block transactions
     const blockTransactions = rewardBlocks.map((blockType) => {
