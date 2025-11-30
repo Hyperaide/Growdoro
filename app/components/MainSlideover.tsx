@@ -1331,7 +1331,7 @@ const MainSlideover = memo(function MainSlideover({
                                 </>
                               ) : (
                                 <>
-                                  {[5, 15, 25, 30, 45, 60].map((mins) => (
+                                  {[5, 15, 25, 30, 45, 60, 90].map((mins) => (
                                     <button
                                       key={mins}
                                       onClick={() => setTimerMinutes(mins)}
