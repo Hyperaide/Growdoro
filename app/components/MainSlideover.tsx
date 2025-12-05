@@ -60,6 +60,23 @@ interface Session {
   rewardsClaimedAt?: string | number;
   timeRemaining?: number;
   type?: "focus" | "break";
+  sessionFlowId?: string;
+  flowIndex?: number;
+}
+
+interface SessionFlowTimer {
+  type: "focus" | "break";
+  minutes: number;
+}
+
+interface SessionFlow {
+  id: string;
+  name: string;
+  timers: SessionFlowTimer[];
+  createdAt: string | number;
+  lastUsedAt?: string | number;
+  currentTimerIndex?: number;
+  isActive?: boolean;
 }
 
 interface Block {
@@ -377,6 +394,7 @@ SupporterTab.displayName = "SupporterTab";
 // Tab type definition
 type TabType =
   | "timer"
+  | "session"
   | "sessions"
   | "blocks"
   | "packs"
@@ -471,6 +489,15 @@ const Tabs = memo(
             activeTab={activeTab}
             onClick={() => {
               setActiveTab("timer");
+              setIsExpanded(true);
+            }}
+          />
+          <TabItem
+            id="session"
+            label="Session"
+            activeTab={activeTab}
+            onClick={() => {
+              setActiveTab("session");
               setIsExpanded(true);
             }}
           />
@@ -594,6 +621,7 @@ const MainSlideover = memo(function MainSlideover({
   const [browserSessionId, setBrowserSessionId] = useState<string>("");
   const [activeTab, setActiveTab] = useState<
     | "timer"
+    | "session"
     | "sessions"
     | "blocks"
     | "packs"
@@ -612,6 +640,14 @@ const MainSlideover = memo(function MainSlideover({
     useState<NotificationPermission | null>(null);
   const [pausedAt, setPausedAt] = useState<number | null>(null);
   const [lowAnimationMode, setLowAnimationMode] = useState(false);
+  
+  // Session flow state
+  const [sessionFlows, setSessionFlows] = useState<SessionFlow[]>([]);
+  const [activeSessionFlow, setActiveSessionFlow] = useState<SessionFlow | null>(null);
+  const [currentFlowIndex, setCurrentFlowIndex] = useState(0);
+  const [editingFlow, setEditingFlow] = useState<SessionFlow | null>(null);
+  const [newFlowName, setNewFlowName] = useState("");
+  const [newFlowTimers, setNewFlowTimers] = useState<SessionFlowTimer[]>([]);
 
   const { user, profile, sessionId } = useAuth();
   const effectiveSessionId = user?.id || sessionId || browserSessionId;
@@ -699,12 +735,36 @@ const MainSlideover = memo(function MainSlideover({
                   },
             },
           },
+          sessionFlows: user
+            ? {
+                $: {
+                  where: {
+                    "user.id": user.id,
+                  },
+                },
+              }
+            : undefined,
         }
       : null
   );
 
   const sessions = data?.sessions || [];
   const unplacedBlocks = data?.blocks || [];
+  const queriedSessionFlows = data?.sessionFlows || [];
+  
+  // Update sessionFlows state when data changes
+  useEffect(() => {
+    if (queriedSessionFlows) {
+      setSessionFlows(queriedSessionFlows as SessionFlow[]);
+      
+      // Check if there's an active session flow and restore it
+      const activeFlow = queriedSessionFlows.find((f: any) => f.isActive);
+      if (activeFlow && !activeSessionFlow) {
+        setActiveSessionFlow(activeFlow as SessionFlow);
+        setCurrentFlowIndex(activeFlow.currentTimerIndex || 0);
+      }
+    }
+  }, [queriedSessionFlows]);
 
   // Memoize expensive calculations
   const sessionsWithUnclaimedRewards = useMemo(() => {
@@ -909,7 +969,9 @@ const MainSlideover = memo(function MainSlideover({
 
   const startTimer = async (
     type?: "focus" | "break",
-    durationMinutes?: number
+    durationMinutes?: number,
+    sessionFlowId?: string,
+    flowIndex?: number
   ) => {
     const timerType = type || timerMode;
 
@@ -927,13 +989,19 @@ const MainSlideover = memo(function MainSlideover({
 
     const minutes = durationMinutes || timerMinutes;
     const newSessionId = id();
-    const newSession = {
+    const newSession: any = {
       sessionId: effectiveSessionId,
       createdAt: Date.now(),
       timeInSeconds: minutes * 60,
       paused: false,
       type: timerType as "focus" | "break",
     };
+
+    // Add session flow tracking if provided
+    if (sessionFlowId) {
+      newSession.sessionFlowId = sessionFlowId;
+      newSession.flowIndex = flowIndex;
+    }
 
     // Create session with user link if authenticated
     if (user) {
@@ -1003,6 +1071,155 @@ const MainSlideover = memo(function MainSlideover({
     setActiveSession(null);
     setRemainingTime(0);
     setIsPaused(false);
+  };
+
+  // Session flow functions
+  const calculateSessionRewards = (timers: SessionFlowTimer[]) => {
+    const focusTimers = timers.filter(t => t.type === "focus");
+    const totalPacks = focusTimers.length;
+    const totalBlocks = totalPacks * 3; // Each pack has 3 blocks
+    const totalMinutes = timers.reduce((sum, t) => sum + t.minutes, 0);
+    const totalFocusMinutes = focusTimers.reduce((sum, t) => sum + t.minutes, 0);
+    
+    return {
+      totalPacks,
+      totalBlocks,
+      totalMinutes,
+      totalFocusMinutes,
+      focusTimerCount: focusTimers.length,
+      breakTimerCount: timers.filter(t => t.type === "break").length,
+    };
+  };
+
+  const createSessionFlow = async () => {
+    if (!user || !newFlowName.trim() || newFlowTimers.length === 0) {
+      alert("Please provide a flow name and add at least one timer!");
+      return;
+    }
+
+    const newFlowId = id();
+    const newFlow = {
+      name: newFlowName.trim(),
+      timers: newFlowTimers,
+      createdAt: Date.now(),
+    };
+
+    await db.transact(
+      db.tx.sessionFlows[newFlowId].update(newFlow).link({
+        user: user.id,
+      })
+    );
+
+    // Reset form
+    setNewFlowName("");
+    setNewFlowTimers([]);
+    setEditingFlow(null);
+  };
+
+  const updateSessionFlow = async (flowId: string, updates: Partial<SessionFlow>) => {
+    if (!user) return;
+    
+    await db.transact(
+      db.tx.sessionFlows[flowId].update(updates)
+    );
+  };
+
+  const deleteSessionFlow = async (flowId: string) => {
+    if (!user) return;
+    
+    await db.transact(
+      db.tx.sessionFlows[flowId].delete()
+    );
+  };
+
+  const startSessionFlow = async (flow: SessionFlow) => {
+    if (!user || !profile) {
+      alert("Please complete your profile setup first!");
+      return;
+    }
+
+    if (flow.timers.length === 0) {
+      alert("This session flow has no timers!");
+      return;
+    }
+
+    // Update flow to mark as active and reset index
+    await updateSessionFlow(flow.id, {
+      isActive: true,
+      currentTimerIndex: 0,
+      lastUsedAt: Date.now(),
+    });
+
+    setActiveSessionFlow(flow);
+    setCurrentFlowIndex(0);
+
+    // Start the first timer
+    const firstTimer = flow.timers[0];
+    await startTimer(firstTimer.type, firstTimer.minutes, flow.id, 0);
+  };
+
+  const nextTimerInFlow = async () => {
+    if (!activeSessionFlow || !user) return;
+
+    const nextIndex = currentFlowIndex + 1;
+
+    if (nextIndex >= activeSessionFlow.timers.length) {
+      // Session flow complete!
+      await updateSessionFlow(activeSessionFlow.id, {
+        isActive: false,
+        currentTimerIndex: 0,
+      });
+      
+      setActiveSessionFlow(null);
+      setCurrentFlowIndex(0);
+      setActiveSession(null);
+      setRemainingTime(0);
+      
+      alert("Session flow complete! Great work! 🎉");
+      return;
+    }
+
+    // Update flow index
+    await updateSessionFlow(activeSessionFlow.id, {
+      currentTimerIndex: nextIndex,
+    });
+
+    setCurrentFlowIndex(nextIndex);
+
+    // Start next timer
+    const nextTimer = activeSessionFlow.timers[nextIndex];
+    await startTimer(nextTimer.type, nextTimer.minutes, activeSessionFlow.id, nextIndex);
+  };
+
+  const cancelSessionFlow = async () => {
+    if (!activeSessionFlow || !user) return;
+
+    await updateSessionFlow(activeSessionFlow.id, {
+      isActive: false,
+      currentTimerIndex: 0,
+    });
+
+    setActiveSessionFlow(null);
+    setCurrentFlowIndex(0);
+    cancelTimer();
+  };
+
+  const addTimerToNewFlow = (type: "focus" | "break", minutes: number) => {
+    setNewFlowTimers([...newFlowTimers, { type, minutes }]);
+  };
+
+  const removeTimerFromNewFlow = (index: number) => {
+    setNewFlowTimers(newFlowTimers.filter((_, i) => i !== index));
+  };
+
+  const moveTimerInNewFlow = (index: number, direction: "up" | "down") => {
+    const newTimers = [...newFlowTimers];
+    const targetIndex = direction === "up" ? index - 1 : index + 1;
+    
+    if (targetIndex < 0 || targetIndex >= newTimers.length) return;
+    
+    [newTimers[index], newTimers[targetIndex]] = [newTimers[targetIndex], newTimers[index]];
+    setNewFlowTimers(newTimers);
   };
 
   const claimReward = async (session: Session) => {
@@ -1579,6 +1796,415 @@ const MainSlideover = memo(function MainSlideover({
                         </>
                       )}
                     </div>
+                  </div>
+                )}
+
+                {/* Session Flow Tab */}
+                {activeTab === "session" && (
+                  <div className="h-full overflow-y-auto">
+                    {!user ? (
+                      <div className="text-center py-8">
+                        <p className="text-xs uppercase text-neutral-900 dark:text-neutral-200 font-barlow font-semibold mb-2">
+                          Sign In Required
+                        </p>
+                        <p className="text-xs text-neutral-600 dark:text-neutral-400">
+                          Sign in to create and use session flows
+                        </p>
+                      </div>
+                    ) : activeSessionFlow ? (
+                      /* Active Session Flow */
+                      <div className="space-y-4">
+                        <div className="bg-purple-50 dark:bg-purple-900 border border-purple-200 dark:border-purple-800 rounded-lg p-3">
+                          <h3 className="text-sm font-semibold text-purple-900 dark:text-purple-200 mb-2">
+                            {activeSessionFlow.name}
+                          </h3>
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-2 text-xs">
+                              <span className="text-purple-700 dark:text-purple-300 font-medium">
+                                Progress:
+                              </span>
+                              <span className="text-purple-900 dark:text-purple-200">
+                                {currentFlowIndex + 1} / {activeSessionFlow.timers.length}
+                              </span>
+                            </div>
+                            <div className="w-full bg-purple-200 dark:bg-purple-800 rounded-full h-2">
+                              <div
+                                className="bg-purple-600 dark:bg-purple-400 h-2 rounded-full transition-all"
+                                style={{
+                                  width: `${((currentFlowIndex + 1) / activeSessionFlow.timers.length) * 100}%`,
+                                }}
+                              />
+                            </div>
+                          </div>
+                        </div>
+
+                        {!activeSession?.completedAt && remainingTime > 0 ? (
+                          <div className="text-center">
+                            <div className="text-xs font-mono uppercase text-purple-500 mb-1 font-semibold">
+                              {activeSessionFlow.timers[currentFlowIndex]?.type === "break" ? "Break Timer" : "Focus Timer"} ({currentFlowIndex + 1}/{activeSessionFlow.timers.length})
+                            </div>
+                            <TimerDisplay
+                              remainingTime={remainingTime}
+                              lowAnimationMode={lowAnimationMode}
+                            />
+                            <div className="flex gap-2 mt-4">
+                              <button
+                                onClick={pauseTimer}
+                                className="flex-1 text-sm font-medium bg-blue-100 dark:bg-blue-900 text-blue-500 dark:text-blue-200 px-4 py-2 rounded-lg hover:bg-blue-500 hover:text-white dark:hover:bg-blue-800 transition-colors flex items-center justify-center gap-2"
+                              >
+                                {isPaused ? (
+                                  <>
+                                    <PlayIcon size={12} weight="fill" />
+                                    Resume
+                                  </>
+                                ) : (
+                                  <>
+                                    <PauseIcon size={12} weight="fill" />
+                                    Pause
+                                  </>
+                                )}
+                              </button>
+                              <button
+                                onClick={cancelSessionFlow}
+                                className="flex-1 text-sm font-medium bg-red-100 dark:bg-red-900 text-red-500 dark:text-red-200 px-4 py-2 rounded-lg hover:bg-red-500 hover:text-white dark:hover:bg-red-800 transition-colors"
+                              >
+                                Cancel Flow
+                              </button>
+                            </div>
+                          </div>
+                        ) : activeSession?.completedAt ? (
+                          <div className="text-center py-4">
+                            <CheckIcon
+                              size={48}
+                              weight="bold"
+                              className="text-green-600 mx-auto mb-2"
+                            />
+                            <h3 className="text-lg font-semibold text-gray-800 dark:text-neutral-200 mb-2">
+                              Timer Complete!
+                            </h3>
+                            {currentFlowIndex < activeSessionFlow.timers.length - 1 ? (
+                              <>
+                                <p className="text-sm text-gray-600 dark:text-neutral-400 mb-4">
+                                  Ready for the next timer in your flow?
+                                </p>
+                                <div className="space-y-2">
+                                  {activeSession.type === "focus" && !activeSession.rewardsClaimedAt && (
+                                    <button
+                                      onClick={() => claimReward(activeSession)}
+                                      disabled={claimingReward}
+                                      className="w-full bg-yellow-500 text-white px-4 py-2 rounded-lg hover:bg-yellow-600 transition-colors flex items-center justify-center gap-2 text-sm font-medium disabled:opacity-75"
+                                    >
+                                      {claimingReward ? (
+                                        <>
+                                          <CircleNotchIcon
+                                            size={20}
+                                            weight="bold"
+                                            className="animate-spin"
+                                          />
+                                          Opening Pack...
+                                        </>
+                                      ) : (
+                                        <>
+                                          <PackageIcon size={20} weight="fill" />
+                                          Claim Pack
+                                        </>
+                                      )}
+                                    </button>
+                                  )}
+                                  <button
+                                    onClick={nextTimerInFlow}
+                                    className="w-full bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors text-sm font-medium"
+                                  >
+                                    Next Timer ({activeSessionFlow.timers[currentFlowIndex + 1]?.type} - {activeSessionFlow.timers[currentFlowIndex + 1]?.minutes}m)
+                                  </button>
+                                </div>
+                              </>
+                            ) : (
+                              <>
+                                <p className="text-sm text-gray-600 dark:text-neutral-400 mb-4">
+                                  You've completed the entire session flow! 🎉
+                                </p>
+                                <div className="space-y-2">
+                                  {activeSession.type === "focus" && !activeSession.rewardsClaimedAt && (
+                                    <button
+                                      onClick={() => claimReward(activeSession)}
+                                      disabled={claimingReward}
+                                      className="w-full bg-yellow-500 text-white px-4 py-2 rounded-lg hover:bg-yellow-600 transition-colors flex items-center justify-center gap-2 text-sm font-medium disabled:opacity-75"
+                                    >
+                                      {claimingReward ? (
+                                        <>
+                                          <CircleNotchIcon
+                                            size={20}
+                                            weight="bold"
+                                            className="animate-spin"
+                                          />
+                                          Opening Pack...
+                                        </>
+                                      ) : (
+                                        <>
+                                          <PackageIcon size={20} weight="fill" />
+                                          Claim Final Pack
+                                        </>
+                                      )}
+                                    </button>
+                                  )}
+                                  <button
+                                    onClick={nextTimerInFlow}
+                                    className="w-full bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors text-sm font-medium"
+                                  >
+                                    Complete Session Flow
+                                  </button>
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        ) : null}
+
+                        {/* Upcoming timers */}
+                        <div className="border-t pt-4 border-dashed border-neutral-200 dark:border-neutral-800">
+                          <h4 className="text-xs uppercase font-semibold text-neutral-900 dark:text-neutral-200 mb-2">
+                            Remaining Timers
+                          </h4>
+                          <div className="space-y-1">
+                            {activeSessionFlow.timers.slice(currentFlowIndex + 1).map((timer, idx) => (
+                              <div
+                                key={idx}
+                                className="flex items-center gap-2 text-xs p-2 bg-neutral-50 dark:bg-neutral-800 rounded"
+                              >
+                                <span className={`px-2 py-0.5 rounded text-[10px] font-medium ${
+                                  timer.type === "focus"
+                                    ? "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-200"
+                                    : "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-200"
+                                }`}>
+                                  {timer.type}
+                                </span>
+                                <span className="text-neutral-700 dark:text-neutral-300">
+                                  {timer.minutes} min
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      /* Session Flow Management */
+                      <div className="space-y-4">
+                        {/* Create New Flow Section */}
+                        <div className="bg-neutral-50 dark:bg-neutral-800 rounded-lg p-3">
+                          <h3 className="text-sm font-semibold text-neutral-900 dark:text-neutral-200 mb-3">
+                            Create New Session Flow
+                          </h3>
+                          
+                          <div className="space-y-3">
+                            <div>
+                              <label className="text-xs text-neutral-600 dark:text-neutral-400 mb-1 block">
+                                Flow Name
+                              </label>
+                              <input
+                                type="text"
+                                value={newFlowName}
+                                onChange={(e) => setNewFlowName(e.target.value)}
+                                placeholder="e.g., Deep Work Session"
+                                className="w-full px-3 py-2 border border-neutral-300 dark:border-neutral-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 dark:bg-neutral-900 dark:text-neutral-200"
+                              />
+                            </div>
+
+                            <div>
+                              <label className="text-xs text-neutral-600 dark:text-neutral-400 mb-1 block">
+                                Add Timers
+                              </label>
+                              <div className="flex gap-2">
+                                <button
+                                  onClick={() => {
+                                    const minutes = prompt("Focus timer duration (5-120 minutes):", "25");
+                                    if (minutes) {
+                                      const num = parseInt(minutes);
+                                      if (num >= 5 && num <= 120) {
+                                        addTimerToNewFlow("focus", num);
+                                      } else {
+                                        alert("Please enter a value between 5 and 120");
+                                      }
+                                    }
+                                  }}
+                                  className="flex-1 px-3 py-2 bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-200 rounded-lg hover:bg-green-200 dark:hover:bg-green-800 transition-colors text-xs font-medium"
+                                >
+                                  + Focus Timer
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    const minutes = prompt("Break timer duration (1-15 minutes):", "5");
+                                    if (minutes) {
+                                      const num = parseInt(minutes);
+                                      if (num >= 1 && num <= 15) {
+                                        addTimerToNewFlow("break", num);
+                                      } else {
+                                        alert("Please enter a value between 1 and 15");
+                                      }
+                                    }
+                                  }}
+                                  className="flex-1 px-3 py-2 bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-200 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors text-xs font-medium"
+                                >
+                                  + Break Timer
+                                </button>
+                              </div>
+                            </div>
+
+                            {newFlowTimers.length > 0 && (
+                              <div>
+                                <label className="text-xs text-neutral-600 dark:text-neutral-400 mb-2 block">
+                                  Timer Sequence ({newFlowTimers.length} timers)
+                                </label>
+                                <div className="space-y-1 mb-3">
+                                  {newFlowTimers.map((timer, idx) => (
+                                    <div
+                                      key={idx}
+                                      className="flex items-center gap-2 p-2 bg-white dark:bg-neutral-900 rounded border border-neutral-200 dark:border-neutral-700"
+                                    >
+                                      <span className="text-xs text-neutral-500 dark:text-neutral-400 w-6">
+                                        {idx + 1}.
+                                      </span>
+                                      <span className={`px-2 py-0.5 rounded text-[10px] font-medium ${
+                                        timer.type === "focus"
+                                          ? "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-200"
+                                          : "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-200"
+                                      }`}>
+                                        {timer.type}
+                                      </span>
+                                      <span className="text-xs text-neutral-700 dark:text-neutral-300 flex-1">
+                                        {timer.minutes} min
+                                      </span>
+                                      <div className="flex gap-1">
+                                        <button
+                                          onClick={() => moveTimerInNewFlow(idx, "up")}
+                                          disabled={idx === 0}
+                                          className="p-1 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 disabled:opacity-30"
+                                        >
+                                          ↑
+                                        </button>
+                                        <button
+                                          onClick={() => moveTimerInNewFlow(idx, "down")}
+                                          disabled={idx === newFlowTimers.length - 1}
+                                          className="p-1 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 disabled:opacity-30"
+                                        >
+                                          ↓
+                                        </button>
+                                        <button
+                                          onClick={() => removeTimerFromNewFlow(idx)}
+                                          className="p-1 text-red-400 hover:text-red-600"
+                                        >
+                                          ✕
+                                        </button>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+
+                                {/* Reward Calculation */}
+                                {(() => {
+                                  const rewards = calculateSessionRewards(newFlowTimers);
+                                  return (
+                                    <div className="bg-purple-50 dark:bg-purple-900 border border-purple-200 dark:border-purple-800 rounded-lg p-3">
+                                      <h4 className="text-xs font-semibold text-purple-900 dark:text-purple-200 mb-2">
+                                        Potential Rewards
+                                      </h4>
+                                      <div className="grid grid-cols-2 gap-2 text-xs">
+                                        <div>
+                                          <span className="text-purple-700 dark:text-purple-300">Total Time:</span>
+                                          <p className="font-semibold text-purple-900 dark:text-purple-200">{rewards.totalMinutes} min</p>
+                                        </div>
+                                        <div>
+                                          <span className="text-purple-700 dark:text-purple-300">Focus Time:</span>
+                                          <p className="font-semibold text-purple-900 dark:text-purple-200">{rewards.totalFocusMinutes} min</p>
+                                        </div>
+                                        <div>
+                                          <span className="text-purple-700 dark:text-purple-300">Packs:</span>
+                                          <p className="font-semibold text-purple-900 dark:text-purple-200">{rewards.totalPacks} packs</p>
+                                        </div>
+                                        <div>
+                                          <span className="text-purple-700 dark:text-purple-300">Blocks:</span>
+                                          <p className="font-semibold text-purple-900 dark:text-purple-200">{rewards.totalBlocks} blocks</p>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  );
+                                })()}
+
+                                <button
+                                  onClick={createSessionFlow}
+                                  disabled={!newFlowName.trim()}
+                                  className="w-full bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                  Create Session Flow
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Saved Session Flows */}
+                        {sessionFlows.length > 0 && (
+                          <div>
+                            <h3 className="text-sm font-semibold text-neutral-900 dark:text-neutral-200 mb-2">
+                              Your Session Flows
+                            </h3>
+                            <div className="space-y-2">
+                              {sessionFlows.map((flow) => {
+                                const rewards = calculateSessionRewards(flow.timers);
+                                return (
+                                  <div
+                                    key={flow.id}
+                                    className="bg-neutral-50 dark:bg-neutral-800 rounded-lg p-3 border border-neutral-200 dark:border-neutral-700"
+                                  >
+                                    <div className="flex items-start justify-between mb-2">
+                                      <h4 className="text-sm font-semibold text-neutral-900 dark:text-neutral-200">
+                                        {flow.name}
+                                      </h4>
+                                      <button
+                                        onClick={() => {
+                                          if (confirm("Delete this session flow?")) {
+                                            deleteSessionFlow(flow.id);
+                                          }
+                                        }}
+                                        className="text-red-400 hover:text-red-600 text-xs"
+                                      >
+                                        Delete
+                                      </button>
+                                    </div>
+                                    
+                                    <div className="text-xs text-neutral-600 dark:text-neutral-400 mb-2">
+                                      {flow.timers.length} timers • {rewards.totalMinutes} min total • {rewards.totalPacks} packs
+                                    </div>
+
+                                    <div className="flex flex-wrap gap-1 mb-3">
+                                      {flow.timers.map((timer, idx) => (
+                                        <span
+                                          key={idx}
+                                          className={`px-2 py-0.5 rounded text-[10px] font-medium ${
+                                            timer.type === "focus"
+                                              ? "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-200"
+                                              : "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-200"
+                                          }`}
+                                        >
+                                          {timer.minutes}m
+                                        </span>
+                                      ))}
+                                    </div>
+
+                                    <button
+                                      onClick={() => startSessionFlow(flow)}
+                                      className="w-full bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors text-xs font-medium flex items-center justify-center gap-2"
+                                    >
+                                      <PlayIcon size={12} weight="fill" />
+                                      Start Session Flow
+                                    </button>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
 

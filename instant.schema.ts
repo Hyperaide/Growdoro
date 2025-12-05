@@ -38,6 +38,16 @@ const _schema = i.schema({
       rewardsClaimedAt: i.date().optional(),
       cancelledAt: i.date().optional().indexed(),
       type: i.string().optional().indexed(), // 'focus' or 'break'
+      sessionFlowId: i.string().optional().indexed(), // Reference to sessionFlow if part of a flow
+      flowIndex: i.number().optional(), // Index in the flow sequence
+    }),
+    sessionFlows: i.entity({
+      name: i.string(),
+      timers: i.json(), // Array of {type: 'focus' | 'break', minutes: number}
+      createdAt: i.date(),
+      lastUsedAt: i.date().optional(),
+      currentTimerIndex: i.number().optional(), // Track progress through the flow
+      isActive: i.boolean().optional(), // Whether this flow is currently running
     }),
   },
   links: {
@@ -52,6 +62,10 @@ const _schema = i.schema({
     userBlocks: {
       forward: { on: 'blocks', has: 'one', label: 'user' },
       reverse: { on: '$users', has: 'many', label: 'blocks' }
+    },
+    userSessionFlows: {
+      forward: { on: 'sessionFlows', has: 'one', label: 'user' },
+      reverse: { on: '$users', has: 'many', label: 'sessionFlows' }
     },
   },
   rooms: {},
