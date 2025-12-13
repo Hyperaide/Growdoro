@@ -21,11 +21,10 @@
     "luxon": "^3.7.1",
     "motion": "^12.23.3",
     "next": "15.3.5",
-    "posthog-js": "^1.297.2",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "stripe": "^18.3.0",
-    "userplex": "0.2.0"
+    "userplex": "0.3.0"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

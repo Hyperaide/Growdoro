@@ -34,7 +34,6 @@ import { UPDATES } from "../constants/updates";
 import AboutTab from "./AboutTab";
 import ThemeToggle from "./ThemeToggle";
 import { useTheme } from "../contexts/theme-context";
-import posthog from "posthog-js";
 import {
   trackTimerStarted,
   trackTimerCompleted,
