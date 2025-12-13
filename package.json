@@ -24,7 +24,7 @@
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "stripe": "^18.3.0",
-    "userplex": "0.3.0"
+    "userplex": "^0.4.0"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

@@ -52,14 +52,21 @@ export async function POST(request: Request) {
         
         if (!dryRun) {
           try {
-            await userplex.users.identify({
+            // Construct payload carefully to avoid undefined values
+            const identifyPayload: any = {
               userId,
-              email: profile.user[0].email,
-              name: profile.username,
-              // Userplex identify call accepts custom traits as part of the body
-              // We cast to any or include it if the type definition allows extra properties
-              ...({ username: profile.username } as any)
-            });
+              name: profile.username || undefined,
+            };
+            
+            // Only add email if it exists
+            if (profile.user?.[0]?.email) {
+              identifyPayload.email = profile.user[0].email;
+            }else{
+              break; // Skip if no email is found
+            }
+            
+
+            await userplex.users.identify(identifyPayload);
 
             await userplex.events.new({
               name: 'user_signed_up',
