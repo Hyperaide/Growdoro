@@ -1,4 +1,5 @@
 import { trackEvent } from './posthog';
+import { trackUserplexEvent } from '@/app/actions/userplex';
 
 /**
  * Event tracking functions for the application
@@ -18,21 +19,30 @@ export const trackSignOut = () => {
   trackEvent('user_signout');
 };
 
-export const trackProfileCreated = (username: string) => {
+export const trackProfileCreated = (username: string, userId?: string) => {
   trackEvent('profile_created', { username });
+  if (userId) {
+    trackUserplexEvent('user_signed_up', userId, { username });
+  }
 };
 
 // Garden/Block Events
-export const trackBlockPlaced = (blockType: string, x: number, y: number, z: number) => {
+export const trackBlockPlaced = (blockType: string, x: number, y: number, z: number, userId?: string) => {
   trackEvent('block_placed', { blockType, x, y, z });
+  if (userId) {
+    trackUserplexEvent('placed_block', userId, { blockType, x, y, z, category: 'block' });
+  }
 };
 
 export const trackBlockRemoved = (blockType: string, x: number, y: number, z: number) => {
   trackEvent('block_removed', { blockType, x, y, z });
 };
 
-export const trackPlantPlanted = (plantType: string, x: number, y: number, z: number) => {
+export const trackPlantPlanted = (plantType: string, x: number, y: number, z: number, userId?: string) => {
   trackEvent('plant_planted', { plantType, x, y, z });
+  if (userId) {
+    trackUserplexEvent('placed_block', userId, { blockType: plantType, x, y, z, category: 'plant' });
+  }
 };
 
 export const trackPlantHarvested = (plantType: string) => {
@@ -40,8 +50,12 @@ export const trackPlantHarvested = (plantType: string) => {
 };
 
 // Timer/Pomodoro Events
-export const trackTimerStarted = (duration: number) => {
-  trackEvent('timer_started', { duration });
+export const trackTimerStarted = (duration: number, userId?: string, type?: 'focus' | 'break') => {
+  trackEvent('timer_started', { duration, type });
+  if (userId) {
+    const eventName = type === 'break' ? 'break_timer_started' : 'focus_timer_started';
+    trackUserplexEvent(eventName, userId, { duration });
+  }
 };
 
 export const trackTimerCompleted = (duration: number, actualTime: number) => {
@@ -57,8 +71,11 @@ export const trackPackOpened = (packType: string) => {
   trackEvent('pack_opened', { packType });
 };
 
-export const trackPackClaimed = (packType: string) => {
+export const trackPackClaimed = (packType: string, userId?: string) => {
   trackEvent('pack_claimed', { packType });
+  if (userId) {
+    trackUserplexEvent('claimed_rewards', userId, { packType });
+  }
 };
 
 // Subscription Events
@@ -100,4 +117,3 @@ export const trackError = (errorMessage: string, errorType: string, context?: st
 export const trackPerformanceMetric = (metricName: string, value: number, unit?: string) => {
   trackEvent('performance_metric', { metricName, value, unit });
 };
-

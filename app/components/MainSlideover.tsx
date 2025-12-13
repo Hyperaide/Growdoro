@@ -956,7 +956,7 @@ const MainSlideover = memo(function MainSlideover({
     setIsPaused(false);
 
     // Track timer started
-    trackTimerStarted(minutes * 60);
+    trackTimerStarted(minutes * 60, user?.id, timerType as "focus" | "break");
   };
 
   const pauseTimer = () => {
@@ -1034,7 +1034,7 @@ const MainSlideover = memo(function MainSlideover({
 
       // Track pack claimed
       const packType = result.packSize === 5 ? "large" : "standard";
-      trackPackClaimed(packType);
+      trackPackClaimed(packType, user?.id);
 
       // Show pack opening animation with the server-generated rewards
       setPackOpeningRewards(result.rewardBlocks);
@@ -1986,7 +1986,8 @@ const MainSlideover = memo(function MainSlideover({
                           Low animation mode
                         </p>
                         <p className="text-sm text-neutral-600 dark:text-neutral-400">
-                          Reduces motion in the timer countdown by switching to instant number changes with no animation.
+                          Reduces motion in the timer countdown by switching to
+                          instant number changes with no animation.
                         </p>
                       </div>
                       <label className="relative inline-flex items-center cursor-pointer select-none">
@@ -1994,7 +1995,9 @@ const MainSlideover = memo(function MainSlideover({
                           type="checkbox"
                           className="sr-only peer"
                           checked={lowAnimationMode}
-                          onChange={(e) => setLowAnimationMode(e.target.checked)}
+                          onChange={(e) =>
+                            setLowAnimationMode(e.target.checked)
+                          }
                         />
                         <div className="w-11 h-6 bg-neutral-200 relative rounded-full transition-colors peer-checked:bg-green-500 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:h-5 after:w-5 after:bg-white after:rounded-full after:shadow after:transition-transform after:duration-200 after:transform peer-checked:after:translate-x-[20px]" />
                       </label>

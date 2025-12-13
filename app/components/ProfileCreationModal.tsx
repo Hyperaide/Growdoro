@@ -154,7 +154,7 @@ export default function ProfileCreationModal({ isOpen, onClose, userId }: Profil
             if (result.success) {
                 setProfileId(result.profileId);
                 // Track profile creation
-                trackProfileCreated(username.toLowerCase());
+                trackProfileCreated(username.toLowerCase(), userId);
                 // Move to step 2
                 setStep(2);
             } else {

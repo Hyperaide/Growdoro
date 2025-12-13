@@ -1099,9 +1099,9 @@ const IsometricGarden: React.FC = () => {
 
     // Track event
     if (blockType.category === "plant") {
-      trackPlantPlanted(selectedInventoryBlock, x, y, 0);
+      trackPlantPlanted(selectedInventoryBlock, x, y, 0, user?.id);
     } else {
-      trackBlockPlaced(selectedInventoryBlock, x, y, 0);
+      trackBlockPlaced(selectedInventoryBlock, x, y, 0, user?.id);
     }
 
     // Add to local state
