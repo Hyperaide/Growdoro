@@ -17,6 +17,20 @@ const nextConfig: NextConfig = {
   
   // Optimize production builds
   swcMinify: true,
+
+  async headers() {
+    return [
+      {
+        source: '/:path*',
+        headers: [
+          {
+            key: 'Content-Security-Policy',
+            value: "frame-ancestors 'self' https://dqnamo.com https://www.dqnamo.com;",
+          },
+        ],
+      },
+    ];
+  },
 };
 
 export default nextConfig;

@@ -14,7 +14,7 @@ export async function POST(request: Request) {
     const dryRun = searchParams.get('dryRun') === 'true';
 
     // Simple security check
-    if (secret !== process.env.CRON_SECRET && secret !== process.env.INSTANT_APP_ADMIN_TOKEN) {
+    if (secret !== process.env.CRON_SECRET && secret !== process.env.ADMIN_SECRET && secret !== process.env.INSTANT_APP_ADMIN_TOKEN) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -41,6 +41,9 @@ export async function POST(request: Request) {
     // 1. Backfill Profiles (User Signups)
     const profilesQuery = await db.query({
       profiles: {
+        $: {
+          limit: 1000, // Adjust limit as needed
+        },
         user: {},
       },
     });
@@ -52,19 +55,18 @@ export async function POST(request: Request) {
         
         if (!dryRun) {
           try {
-            // Construct payload carefully to avoid undefined values
+            const email = profile.user[0].email;
+            
+            // Construct identification payload
             const identifyPayload: any = {
               userId,
               name: profile.username || undefined,
+              ...({ username: profile.username } as any)
             };
             
-            // Only add email if it exists
-            if (profile.user?.[0]?.email) {
-              identifyPayload.email = profile.user[0].email;
-            }else{
-              break; // Skip if no email is found
+            if (email) {
+              identifyPayload.email = email;
             }
-            
 
             await userplex.users.identify(identifyPayload);
 
@@ -90,6 +92,9 @@ export async function POST(request: Request) {
     // 2. Backfill Sessions (Timer Starts)
     const sessionsQuery = await db.query({
       sessions: {
+        $: {
+            limit: 1000,
+        },
         user: {},
       },
     });
@@ -122,8 +127,6 @@ export async function POST(request: Request) {
         // 3. Backfill Rewards (Pack Claimed)
         if (session.rewardsClaimedAt) {
             const rewardTimestamp = new Date(session.rewardsClaimedAt).toISOString();
-            // Estimate pack type based on duration logic roughly matching current logic
-            // < 60 mins = standard (3 seeds), >= 60 mins = large (5/6 seeds)
             const minutes = Math.floor(session.timeInSeconds / 60);
             const packType = minutes >= 60 ? 'large' : 'standard';
 
@@ -135,7 +138,7 @@ export async function POST(request: Request) {
                         timestamp: rewardTimestamp,
                         properties: {
                             packType,
-                        }
+                        },
                     });
                     results.rewards++;
                 } catch (e) {
@@ -148,53 +151,6 @@ export async function POST(request: Request) {
         }
       }
     }
-
-    // 4. Backfill Blocks (Placed Blocks/Plants) - Disabled to reduce volume
-    /*
-    const blocksQuery = await db.query({
-      blocks: {
-        $: {
-          where: {
-            x: { $isNull: false }, // Only placed blocks
-          },
-          limit: 1000,
-        },
-        user: {},
-      },
-    });
-
-    for (const block of blocksQuery.blocks) {
-      if (block.user?.[0]?.id && block.plantedAt) {
-        const userId = block.user[0].id;
-        const timestamp = new Date(block.plantedAt).toISOString();
-        // We assume category based on type or just send as placed_block with type
-        // The event system we set up sends 'placed_block' for both but distinguishes in properties if needed
-        // For backfill, we'll just use 'placed_block' and include the type.
-        
-        if (!dryRun) {
-          try {
-            await userplex.events.new({
-              name: 'placed_block',
-              user_id: userId,
-              timestamp,
-              properties: {
-                blockType: block.type,
-                x: block.x,
-                y: block.y,
-                z: block.z,
-              },
-            });
-            results.blocks++;
-          } catch (e) {
-            console.error(`Failed to track block ${block.id}`, e);
-            results.errors++;
-          }
-        } else {
-            results.blocks++;
-        }
-      }
-    }
-    */
 
     return NextResponse.json({
       success: true,
@@ -210,4 +166,3 @@ export async function POST(request: Request) {
     );
   }
 }
-

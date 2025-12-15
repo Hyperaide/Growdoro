@@ -43,13 +43,14 @@ export async function identifyUserplexUser(
   }
 
   try {
-    // Construct payload with required fields for TS, filtering undefined if needed or casting
-    const payload: any = {
+    // Construct the payload to match what the SDK expects
+    // The SDK likely takes { userId, email, name, ...properties }
+    await client.users.identify({
       userId,
+      email: traits.email,
+      name: traits.name,
       ...traits
-    };
-
-    await client.users.identify(payload);
+    });
     return { success: true };
   } catch (error) {
     console.error('Error identifying Userplex user:', error);
