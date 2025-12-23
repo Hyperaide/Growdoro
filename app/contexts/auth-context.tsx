@@ -6,12 +6,8 @@ import { id } from "@instantdb/react";
 import { GoogleOAuthProvider, GoogleLogin } from "@react-oauth/google";
 import ProfileCreationModal from "../components/ProfileCreationModal";
 import LoginModal from "../components/LoginModal";
-import {
-  trackSignIn,
-  trackSignOut,
-  trackProfileCreated,
-  identifyUser,
-} from "@/lib/events";
+import { trackSignIn, trackSignOut } from "@/lib/events";
+import { userplexClient } from "@/lib/userplex";
 
 interface AuthContextType {
   user: any;
@@ -69,10 +65,13 @@ function AuthContextProviderInner({ children }: { children: React.ReactNode }) {
 
   if (user && profile && !isIdentified) {
     setIsIdentified(true);
-    identifyUser(user.id, {
-      email: user.email,
-      username: profile.username,
-      name: profile.username, // Use username as name if no other name is available
+    userplexClient.users.identify({
+      user_id: user.id,
+      attributes: {
+        email: user.email,
+        username: profile.username,
+        name: profile.username, // Use username as name if no other name is available
+      },
     });
   }
 

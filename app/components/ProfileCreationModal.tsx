@@ -12,7 +12,7 @@ import {
 } from "@phosphor-icons/react";
 import { motion, AnimatePresence } from "motion/react";
 import { useAuth } from "@/app/contexts/auth-context";
-import { trackProfileCreated, identifyUser } from "@/lib/events";
+import { userplexClient } from "@/lib/userplex";
 
 interface ProfileCreationModalProps {
   isOpen: boolean;
@@ -171,13 +171,22 @@ export default function ProfileCreationModal({
       if (result.success) {
         setProfileId(result.profileId);
         // Track profile creation
-        trackProfileCreated(username.toLowerCase(), userId);
+        userplexClient.logs.new({
+          name: "profile_created",
+          user_id: userId,
+          properties: {
+            username: username.toLowerCase(),
+          },
+        });
 
         // Identify user
-        identifyUser(userId, {
-          username: username.toLowerCase(),
-          name: username.toLowerCase(),
-          email: user?.email,
+        userplexClient.users.identify({
+          user_id: userId,
+          attributes: {
+            username: username.toLowerCase(),
+            name: username.toLowerCase(),
+            email: user?.email,
+          },
         });
 
         // Move to step 2
