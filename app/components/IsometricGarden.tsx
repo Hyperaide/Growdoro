@@ -29,6 +29,7 @@ import AuthButton from "./AuthButton";
 import { AppSchema } from "@/instant.schema";
 import { imageCache } from "../../lib/image-cache";
 import { trackBlockPlaced, trackPlantPlanted } from "@/lib/events";
+import { userplexClient } from "@/lib/userplex";
 
 interface Block {
   id: string;
@@ -1100,8 +1101,26 @@ const IsometricGarden: React.FC = () => {
     // Track event
     if (blockType.category === "plant") {
       trackPlantPlanted(selectedInventoryBlock, x, y, 0, user?.id);
+      userplexClient.logs.new({
+        name: "plant_planted",
+        user_id: user?.id,
+        properties: {
+          block_type: selectedInventoryBlock,
+          x,
+          y,
+        },
+      });
     } else {
       trackBlockPlaced(selectedInventoryBlock, x, y, 0, user?.id);
+      userplexClient.logs.new({
+        name: "block_placed",
+        user_id: user?.id,
+        properties: {
+          block_type: selectedInventoryBlock,
+          x,
+          y,
+        },
+      });
     }
 
     // Add to local state

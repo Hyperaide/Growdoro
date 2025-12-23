@@ -34,13 +34,7 @@ import { UPDATES } from "../constants/updates";
 import AboutTab from "./AboutTab";
 import ThemeToggle from "./ThemeToggle";
 import { useTheme } from "../contexts/theme-context";
-import {
-  trackTimerStarted,
-  trackTimerCompleted,
-  trackTimerStopped,
-  trackPackOpened,
-  trackPackClaimed,
-} from "@/lib/events";
+import { userplexClient } from "@/lib/userplex";
 
 interface MainSlideoverProps {
   isOpen: boolean;
@@ -901,7 +895,14 @@ const MainSlideover = memo(function MainSlideover({
         // Track timer completed
         const duration = activeSession.timeInSeconds;
         const actualTime = duration; // Timer completed fully
-        trackTimerCompleted(duration, actualTime);
+        userplexClient.logs.new({
+          name: "timer_completed",
+          user_id: user?.id,
+          properties: {
+            duration,
+            actualTime,
+          },
+        });
       }, 100);
     }
   }, [activeSession, remainingTime]);
@@ -955,7 +956,14 @@ const MainSlideover = memo(function MainSlideover({
     setIsPaused(false);
 
     // Track timer started
-    trackTimerStarted(minutes * 60, user?.id, timerType as "focus" | "break");
+    userplexClient.logs.new({
+      name: "timer_started",
+      user_id: user?.id,
+      properties: {
+        duration: minutes * 60,
+        type: timerType,
+      },
+    });
   };
 
   const pauseTimer = () => {
@@ -990,7 +998,14 @@ const MainSlideover = memo(function MainSlideover({
       // Track timer stopped
       const duration = activeSession.timeInSeconds;
       const elapsedTime = duration - remainingTime;
-      trackTimerStopped(duration, elapsedTime);
+      userplexClient.logs.new({
+        name: "timer_stopped",
+        user_id: user?.id,
+        properties: {
+          duration,
+          elapsedTime,
+        },
+      });
 
       db.transact(
         db.tx.sessions[activeSession.id].update({
@@ -1033,7 +1048,13 @@ const MainSlideover = memo(function MainSlideover({
 
       // Track pack claimed
       const packType = result.packSize === 5 ? "large" : "standard";
-      trackPackClaimed(packType, user?.id);
+      userplexClient.logs.new({
+        name: "pack_claimed",
+        user_id: user?.id,
+        properties: {
+          packType,
+        },
+      });
 
       // Show pack opening animation with the server-generated rewards
       setPackOpeningRewards(result.rewardBlocks);
