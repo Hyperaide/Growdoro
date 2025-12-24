@@ -11,6 +11,8 @@ import "./globals.css";
 import AuthContextProvider from "./contexts/auth-context";
 import { ThemeContextProvider } from "./contexts/theme-context";
 import NightModeOverlay from "./components/NightModeOverlay";
+import WebAnalytics from "./components/WebAnalytics";
+import { headers } from "next/headers";
 
 const varelaRound = Varela_Round({
   variable: "--font-varela-round",
@@ -51,11 +53,22 @@ export const metadata: Metadata = {
   description: "Gamified pomodoro timer.",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const headersList = await headers();
+
+  const geo = {
+    country: headersList.get("x-vercel-ip-country") || undefined,
+    city: headersList.get("x-vercel-ip-city") || undefined,
+    region: headersList.get("x-vercel-ip-country-region") || undefined,
+    postalCode: headersList.get("x-vercel-ip-postal-code") || undefined,
+    latitude: headersList.get("x-vercel-ip-latitude") || undefined,
+    longitude: headersList.get("x-vercel-ip-longitude") || undefined,
+  };
+
   return (
     <html
       lang="en"
@@ -74,30 +87,14 @@ export default function RootLayout({
           <AuthContextProvider>{children}</AuthContextProvider>
           <NightModeOverlay />
         </ThemeContextProvider>
-
-        {/* <div className="flex flex-col absolute bottom-4 left-4 pointer-events-none">
-          <h1 className="text-lg md:text-2xl font-bold font-barlow uppercase text-black/20">
-            Growdoro
-          </h1>
-          <p className="text-[10px] md:text-xs text-black/40">
-            An infinite garden productivity app. Built by{" "}
-            <a
-              href="https://www.x.com/dqnamo/"
-              className="text-black/50 pointer-events-auto"
-            >
-              JP
-            </a>
-          </p>
-          <p className="text-[10px] md:text-xs text-black/40">
-            View code on{" "}
-            <a
-              href="https://github.com/hyperaide/growdoro"
-              className="text-black/50 pointer-events-auto"
-            >
-              GitHub
-            </a>
-          </p>
-        </div> */}
+        <WebAnalytics
+          country={geo.country}
+          city={geo.city}
+          region={geo.region}
+          postal_code={geo.postalCode}
+          latitude={geo.latitude}
+          longitude={geo.longitude}
+        />
       </body>
     </html>
   );
