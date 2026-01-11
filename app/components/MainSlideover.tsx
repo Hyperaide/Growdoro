@@ -1684,7 +1684,13 @@ const MainSlideover = memo(function MainSlideover({
                                 const minutes = Math.floor(
                                   session.timeInSeconds / 60
                                 );
-                                const packSize = minutes >= 60 ? 6 : 3;
+                                const packSize = 3;
+                                const rarityBoost =
+                                  minutes >= 45
+                                    ? "Best odds for rare seeds"
+                                    : minutes >= 30
+                                    ? "Better odds for rare seeds"
+                                    : "Standard odds";
 
                                 return (
                                   <button
@@ -1729,6 +1735,9 @@ const MainSlideover = memo(function MainSlideover({
                                           </p>
                                           <p className="text-[10px] text-center opacity-90">
                                             {packSize} Premium Seeds
+                                          </p>
+                                          <p className="text-[9px] text-center opacity-80 text-amber-100">
+                                            {rarityBoost}
                                           </p>
                                         </div>
 
@@ -2088,9 +2097,9 @@ const MainSlideover = memo(function MainSlideover({
                                 EARN PACKS
                               </h4>
                               <p className="text-xs text-neutral-600 dark:text-neutral-400 leading-relaxed">
-                                Complete sessions to earn seed packs. Sessions
-                                under 60 minutes give 3 seeds, 60+ minutes give
-                                6 seeds.
+                                Complete sessions to earn seed packs. Every
+                                pack contains three seeds, and longer sessions
+                                boost your odds of higher rarities.
                               </p>
                             </div>
                           </div>
